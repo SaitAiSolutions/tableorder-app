@@ -16,77 +16,85 @@ export function OrderCard({ order, onAdvance, onCancel }: OrderCardProps) {
   const meta = getStatusMeta(order.status)
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">
-            Τραπέζι {order.table?.table_number ?? '-'}
+          <h3 className="text-xl font-semibold tracking-tight text-gray-900">
+            Τραπέζι {order.table_id ?? '-'}
           </h3>
-          <p className="text-xs text-gray-500">
+          <p className="mt-1 text-sm text-[#7b6657]">
             {new Date(order.created_at).toLocaleString('el-GR')}
           </p>
         </div>
+
         <Badge className={meta.badge}>{meta.label_el}</Badge>
       </div>
 
-      <div className="space-y-2">
-        {order.items?.map((item) => (
-          <div key={item.id} className="rounded-lg bg-gray-50 px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
+      <div className="space-y-3">
+        {order.order_items?.map((item) => (
+          <div
+            key={item.id}
+            className="rounded-2xl border border-[#f0e8df] bg-[#faf7f2] px-4 py-3"
+          >
+            <div className="flex items-center justify-between gap-4">
               <p className="text-sm font-medium text-gray-900">
                 {item.quantity}× {item.product_name_snapshot_el}
               </p>
-              <p className="text-sm text-gray-700">{formatCurrency(item.line_total)}</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {formatCurrency(item.line_total)}
+              </p>
             </div>
 
-            {item.options && item.options.length > 0 && (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {item.options.map((option) => (
+            {item.order_item_options && item.order_item_options.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.order_item_options.map((option) => (
                   <span
                     key={option.id}
-                    className="rounded-full bg-white px-2 py-0.5 text-[11px] text-gray-600"
+                    className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
                   >
                     {option.option_group_name_el}: {option.option_choice_name_el}
                   </span>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         ))}
       </div>
 
-      {order.notes && (
-        <div className="mt-3 rounded-lg border border-dashed border-gray-200 px-3 py-2 text-xs text-gray-600">
+      {order.notes ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-[#e6dcd1] bg-[#fffdfb] px-4 py-3 text-sm text-[#6f6156]">
           Σημείωση: {order.notes}
         </div>
-      )}
+      ) : null}
 
-      <div className="mt-4 flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-900">
+      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-lg font-semibold text-gray-900">
           Σύνολο: {formatCurrency(order.total_amount)}
         </p>
 
-        <div className="flex gap-2">
-          {order.status !== 'completed' && order.status !== 'cancelled' && meta.action_el && (
+        <div className="flex flex-wrap gap-2">
+          {order.status !== 'completed' && order.status !== 'cancelled' && meta.action_el ? (
             <Button
               type="button"
               size="sm"
+              className="rounded-xl bg-[#1f2937] text-white hover:bg-[#111827]"
               onClick={() => onAdvance?.(order.id)}
             >
               {meta.action_el}
             </Button>
-          )}
+          ) : null}
 
-          {order.status !== 'completed' && order.status !== 'cancelled' && (
+          {order.status !== 'completed' && order.status !== 'cancelled' ? (
             <Button
               type="button"
               size="sm"
               variant="ghost"
+              className="rounded-xl text-[#6f6156] hover:bg-[#f5efe7] hover:text-[#1f2937]"
               onClick={() => onCancel?.(order.id)}
             >
               Ακύρωση
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
