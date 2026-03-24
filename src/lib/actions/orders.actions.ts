@@ -30,11 +30,13 @@ async function resolveCurrentBusinessId() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  if (error || !data?.business_id) {
+  const row = data as unknown as { business_id?: string } | null
+
+  if (error || !row?.business_id) {
     return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
   }
 
-  return { businessId: data.business_id, error: null }
+  return { businessId: row.business_id, error: null }
 }
 
 export async function placeOrder(
@@ -84,7 +86,7 @@ export async function placeOrder(
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard', 'layout')
 
-  return { data, error: null }
+  return { data: data as unknown as PlaceOrderResult, error: null }
 }
 
 export async function updateOrderStatus(
@@ -95,7 +97,7 @@ export async function updateOrderStatus(
 
   const { error } = await supabase
     .from('orders')
-    .update({ status })
+    .update({ status } as never)
     .eq('id', orderId)
 
   if (error) return { data: null, error: error.message }
@@ -120,7 +122,8 @@ export async function getOrdersByBusiness(
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    const { businessId: currentBusinessId, error } =
+      await resolveCurrentBusinessId()
 
     if (error || !currentBusinessId) {
       return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
@@ -149,5 +152,5 @@ export async function getOrdersByBusiness(
 
   if (error) return { data: null, error: error.message }
 
-  return { data: (data ?? []) as OrderWithItems[], error: null }
+  return { data: (data ?? []) as unknown as OrderWithItems[], error: null }
 }
