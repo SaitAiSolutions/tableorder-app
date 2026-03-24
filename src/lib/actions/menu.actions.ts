@@ -55,18 +55,20 @@ export async function getMenuForCustomer(
 ): Promise<ActionResult<CustomerMenuData>> {
   const supabase = await createClient()
 
-  const { data: business, error: bizError } = await supabase
+  const { data: businessData, error: bizError } = await supabase
     .from('businesses')
     .select('*')
     .eq('slug', slug)
     .eq('is_active', true)
     .maybeSingle()
 
+  const business = businessData as unknown as Business | null
+
   if (bizError || !business) {
     return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
   }
 
-  const { data: table, error: tableError } = await supabase
+  const { data: tableData, error: tableError } = await supabase
     .from('tables')
     .select('*')
     .eq('id', tableId)
@@ -74,11 +76,13 @@ export async function getMenuForCustomer(
     .eq('is_active', true)
     .maybeSingle()
 
+  const table = tableData as unknown as Table | null
+
   if (tableError || !table) {
     return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
   }
 
-  const { data: categories, error: menuError } = await supabase
+  const { data: categoriesData, error: menuError } = await supabase
     .from('categories')
     .select(`
       *,
@@ -110,9 +114,9 @@ export async function getMenuForCustomer(
 
   return {
     data: {
-      business: business as unknown as Business,
-      table: table as unknown as Table,
-      categories: (categories ?? []) as unknown as CategoryWithProducts[],
+      business,
+      table,
+      categories: (categoriesData ?? []) as unknown as CategoryWithProducts[],
     },
     error: null,
   }
@@ -194,6 +198,8 @@ export async function createCategory(
     .single()
 
   if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
   return { data: data as unknown as Category, error: null }
 }
 
