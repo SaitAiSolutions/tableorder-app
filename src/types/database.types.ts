@@ -23,171 +23,185 @@ export type Json =
 // Domain enums — match DB CHECK constraints exactly
 // ---------------------------------------------------------------------------
 
-export type UserRole      = 'owner' | 'manager' | 'staff'
-export type OrderStatus   = 'new' | 'accepted' | 'preparing' | 'ready' | 'completed' | 'cancelled'
+export type UserRole = 'owner' | 'manager' | 'staff'
+export type OrderStatus =
+  | 'new'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'completed'
+  | 'cancelled'
 export type SessionStatus = 'active' | 'cleared'
-export type Language      = 'el' | 'en'
+export type Language = 'el' | 'en'
 
 // ---------------------------------------------------------------------------
 // Table row types — one interface per DB table
 // ---------------------------------------------------------------------------
 
 export interface Profile {
-  id:         string
-  full_name:  string | null
+  id: string
+  full_name: string | null
   avatar_url: string | null
   created_at: string
   updated_at: string
 }
 
 export interface Business {
-  id:               string
-  name:             string
-  slug:             string
-  logo_url:         string | null
-  primary_color:    string
-  secondary_color:  string
-  currency:         string
+  id: string
+  name: string
+  slug: string
+  logo_url: string | null
+  primary_color: string
+  secondary_color: string
+  currency: string
   default_language: Language
-  is_active:        boolean
-  created_at:       string
-  updated_at:       string
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface BusinessUser {
-  id:          string
+  id: string
   business_id: string
-  user_id:     string
-  role:        UserRole
-  created_at:  string
+  user_id: string
+  role: UserRole
+  created_at: string
 }
 
 export interface Table {
-  id:           string
-  business_id:  string
+  id: string
+  business_id: string
   table_number: string
-  name:         string | null
-  is_active:    boolean
-  notes:        string | null
-  created_at:   string
-  updated_at:   string
+  name: string | null
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Category {
-  id:          string
+  id: string
   business_id: string
-  name_el:     string
-  name_en:     string | null
-  sort_order:  number
-  is_active:   boolean
-  created_at:  string
-  updated_at:  string
+  name_el: string
+  name_en: string | null
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface Product {
-  id:             string
-  business_id:    string
-  category_id:    string
-  name_el:        string
-  name_en:        string | null
+  id: string
+  business_id: string
+  category_id: string
+  name_el: string
+  name_en: string | null
   description_el: string | null
   description_en: string | null
-  price:          number
-  image_url:      string | null
-  is_available:   boolean
-  sort_order:     number
-  created_at:     string
-  updated_at:     string
+  price: number
+  image_url: string | null
+  is_available: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
 }
 
 export interface ProductOptionGroup {
-  id:          string
+  id: string
   business_id: string
-  product_id:  string
-  name_el:     string
-  name_en:     string | null
+  product_id: string
+  name_el: string
+  name_en: string | null
   is_required: boolean
-  sort_order:  number
-  created_at:  string
+  sort_order: number
+  created_at: string
 }
 
 export interface ProductOptionChoice {
-  id:          string
+  id: string
   business_id: string
-  group_id:    string
-  name_el:     string
-  name_en:     string | null
+  group_id: string
+  name_el: string
+  name_en: string | null
   price_delta: number
-  sort_order:  number
-  created_at:  string
+  sort_order: number
+  created_at: string
 }
 
 export interface TableSession {
-  id:          string
+  id: string
   business_id: string
-  table_id:    string
-  status:      SessionStatus
-  is_active:   boolean
-  started_at:  string
-  cleared_at:  string | null
-  created_at:  string
+  table_id: string
+  status: SessionStatus
+  is_active: boolean
+  started_at: string
+  cleared_at: string | null
+  created_at: string
 }
 
 export interface Order {
-  id:               string
-  business_id:      string
-  table_id:         string
+  id: string
+  business_id: string
+  table_id: string
   table_session_id: string
-  status:           OrderStatus
-  notes:            string | null
-  total_amount:     number
-  created_at:       string
-  updated_at:       string
+  status: OrderStatus
+  notes: string | null
+  total_amount: number
+  created_at: string
+  updated_at: string
 }
 
 export interface OrderItem {
-  id:                       string
-  business_id:              string
-  order_id:                 string
-  product_id:               string | null  // nullable — survives product deletion
+  id: string
+  business_id: string
+  order_id: string
+  product_id: string | null
   product_name_snapshot_el: string
   product_name_snapshot_en: string | null
-  unit_price:               number
-  quantity:                 number
-  line_total:               number
+  unit_price: number
+  quantity: number
+  line_total: number
 }
 
 export interface OrderItemOption {
-  id:                    string
-  business_id:           string
-  order_item_id:         string
-  option_group_name_el:  string
-  option_group_name_en:  string | null
+  id: string
+  business_id: string
+  order_item_id: string
+  option_group_name_el: string
+  option_group_name_en: string | null
   option_choice_name_el: string
   option_choice_name_en: string | null
-  price_delta:           number
+  price_delta: number
 }
 
 // ---------------------------------------------------------------------------
 // Insert types — DB-generated fields omitted, used in server actions
 // ---------------------------------------------------------------------------
 
-export type InsertBusiness            = Omit<Business, 'id' | 'created_at' | 'updated_at'>
-export type InsertBusinessUser        = Omit<BusinessUser, 'id' | 'created_at'>
-export type InsertTable               = Omit<Table, 'id' | 'created_at' | 'updated_at'>
-export type InsertCategory            = Omit<Category, 'id' | 'created_at' | 'updated_at'>
-export type InsertProduct             = Omit<Product, 'id' | 'created_at' | 'updated_at'>
-export type InsertProductOptionGroup  = Omit<ProductOptionGroup, 'id' | 'created_at'>
+export type InsertBusiness = Omit<Business, 'id' | 'created_at' | 'updated_at'>
+export type InsertBusinessUser = Omit<BusinessUser, 'id' | 'created_at'>
+export type InsertTable = Omit<Table, 'id' | 'created_at' | 'updated_at'>
+export type InsertCategory = Omit<Category, 'id' | 'created_at' | 'updated_at'>
+export type InsertProduct = Omit<Product, 'id' | 'created_at' | 'updated_at'>
+export type InsertProductOptionGroup = Omit<ProductOptionGroup, 'id' | 'created_at'>
 export type InsertProductOptionChoice = Omit<ProductOptionChoice, 'id' | 'created_at'>
 
 // ---------------------------------------------------------------------------
 // Update types — all partial, immutable fields excluded
 // ---------------------------------------------------------------------------
 
-export type UpdateBusiness = Partial<Omit<Business, 'id' | 'created_at' | 'updated_at'>>
-export type UpdateTable    = Partial<Omit<Table, 'id' | 'business_id' | 'created_at' | 'updated_at'>>
-export type UpdateCategory = Partial<Omit<Category, 'id' | 'business_id' | 'created_at' | 'updated_at'>>
-export type UpdateProduct  = Partial<Omit<Product, 'id' | 'business_id' | 'created_at' | 'updated_at'>>
+export type UpdateBusiness = Partial<
+  Omit<Business, 'id' | 'created_at' | 'updated_at'>
+>
+export type UpdateTable = Partial<
+  Omit<Table, 'id' | 'business_id' | 'created_at' | 'updated_at'>
+>
+export type UpdateCategory = Partial<
+  Omit<Category, 'id' | 'business_id' | 'created_at' | 'updated_at'>
+>
+export type UpdateProduct = Partial<
+  Omit<Product, 'id' | 'business_id' | 'created_at' | 'updated_at'>
+>
 
 // ---------------------------------------------------------------------------
 // Joined / enriched query return types
@@ -217,8 +231,8 @@ export interface OrderWithItems extends Order {
 
 /** Table session with all its orders — table detail view */
 export interface SessionWithOrders extends TableSession {
-  orders:        OrderWithItems[]
-  session_total: number  // computed: sum of non-cancelled order totals
+  orders: OrderWithItems[]
+  session_total: number
 }
 
 /** Table with its single active session (if occupied) — tables grid */
@@ -236,46 +250,52 @@ export interface TableWithActiveSession extends Table {
 // ---------------------------------------------------------------------------
 
 export interface PlaceOrderItem {
-  product_id: string    // UUID — DB loads price + names
-  quantity:   number    // positive integer ≥ 1
-  choice_ids: string[]  // UUID[] — DB loads price_delta + names
+  product_id: string
+  quantity: number
+  choice_ids: string[]
 }
 
 export interface PlaceOrderParams {
   p_business_id: string
-  p_table_id:    string
-  p_notes?:      string | null
-  p_items:       PlaceOrderItem[]
+  p_table_id: string
+  p_notes?: string | null
+  p_items: PlaceOrderItem[]
 }
 
 export interface PlaceOrderResult {
-  order_id:   string
+  order_id: string
   session_id: string
-  total:      number
+  total: number
 }
 
 export interface ClearTableParams {
   p_business_id: string
-  p_table_id:    string
+  p_table_id: string
 }
 
 export interface ClearTableResult {
-  success:     boolean
+  success: boolean
   session_id?: string
-  message?:    string
+  message?: string
 }
 
 export interface TransferOrderParams {
-  p_business_id:     string
-  p_order_id:        string
+  p_business_id: string
+  p_order_id: string
   p_target_table_id: string
 }
 
 export interface TransferOrderResult {
-  success:        boolean
-  order_id:       string
-  new_table_id:   string
+  success: boolean
+  order_id: string
+  new_table_id: string
   new_session_id: string
+}
+
+export interface CustomerMenuData {
+  business: Business
+  table: Table
+  categories: CategoryWithProducts[]
 }
 
 // ---------------------------------------------------------------------------
@@ -284,22 +304,21 @@ export interface TransferOrderResult {
 // ---------------------------------------------------------------------------
 
 export interface CartItemOption {
-  choice_id:   string  // UUID — sent to place_order in choice_ids[]
-  group_id:    string
-  group_name:  string  // display only
-  choice_name: string  // display only
-  price_delta: number  // display only — DB re-validates on submit
+  choice_id: string
+  group_id: string
+  group_name: string
+  choice_name: string
+  price_delta: number
 }
 
 export interface CartItem {
-  // Deterministic key: product_id + sorted choice_ids (detects duplicates)
-  key:        string
+  key: string
   product_id: string
-  name:       string   // display only
-  base_price: number   // display only
-  quantity:   number
-  options:    CartItemOption[]
-  line_total: number   // display only — recomputed on every cart change
+  name: string
+  base_price: number
+  quantity: number
+  options: CartItemOption[]
+  line_total: number
 }
 
 // ---------------------------------------------------------------------------
@@ -312,85 +331,85 @@ export type Database = {
   public: {
     Tables: {
       profiles: {
-        Row:    Profile
+        Row: Profile
         Insert: Omit<Profile, 'created_at' | 'updated_at'>
         Update: Partial<Profile>
       }
       businesses: {
-        Row:    Business
+        Row: Business
         Insert: InsertBusiness
         Update: UpdateBusiness
       }
       business_users: {
-        Row:    BusinessUser
+        Row: BusinessUser
         Insert: InsertBusinessUser
         Update: Partial<BusinessUser>
       }
       tables: {
-        Row:    Table
+        Row: Table
         Insert: InsertTable
         Update: UpdateTable
       }
       categories: {
-        Row:    Category
+        Row: Category
         Insert: InsertCategory
         Update: UpdateCategory
       }
       products: {
-        Row:    Product
+        Row: Product
         Insert: InsertProduct
         Update: UpdateProduct
       }
       product_option_groups: {
-        Row:    ProductOptionGroup
+        Row: ProductOptionGroup
         Insert: InsertProductOptionGroup
         Update: Partial<ProductOptionGroup>
       }
       product_option_choices: {
-        Row:    ProductOptionChoice
+        Row: ProductOptionChoice
         Insert: InsertProductOptionChoice
         Update: Partial<ProductOptionChoice>
       }
       table_sessions: {
-        Row:    TableSession
+        Row: TableSession
         Insert: Omit<TableSession, 'id' | 'created_at'>
         Update: Partial<TableSession>
       }
       orders: {
-        Row:    Order
+        Row: Order
         Insert: Omit<Order, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Order>
       }
       order_items: {
-        Row:    OrderItem
+        Row: OrderItem
         Insert: Omit<OrderItem, 'id'>
         Update: Partial<OrderItem>
       }
       order_item_options: {
-        Row:    OrderItemOption
+        Row: OrderItemOption
         Insert: Omit<OrderItemOption, 'id'>
         Update: Partial<OrderItemOption>
       }
     }
     Functions: {
       place_order: {
-        Args:    PlaceOrderParams
+        Args: PlaceOrderParams
         Returns: PlaceOrderResult
       }
       clear_table: {
-        Args:    ClearTableParams
+        Args: ClearTableParams
         Returns: ClearTableResult
       }
       transfer_order: {
-        Args:    TransferOrderParams
+        Args: TransferOrderParams
         Returns: TransferOrderResult
       }
       set_current_business: {
-        Args:    { p_id: string }
+        Args: { p_id: string }
         Returns: void
       }
       get_business_ids_for_user: {
-        Args:    { p_user_id: string }
+        Args: { p_user_id: string }
         Returns: string[]
       }
     }
