@@ -11,12 +11,6 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
-// ---------------------------------------------------------------------------
-// getCurrentBusiness
-// Called in the dashboard layout and every dashboard server component to
-// establish tenant context. Returns null without an error when the user
-// has no business yet — that is the expected onboarding state, not a failure.
-// ---------------------------------------------------------------------------
 export async function getCurrentBusiness(): Promise<ActionResult<Business>> {
   const supabase = await createClient()
 
@@ -34,18 +28,9 @@ export async function getCurrentBusiness(): Promise<ActionResult<Business>> {
     .maybeSingle()
 
   if (error) return { data: null, error: error.message }
-  return { data, error: null }
+  return { data: data as Business, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// createBusiness
-// Onboarding step 1. Uses the admin client (service role) because the new
-// user has no business_id yet — there are no business_users rows for them,
-// so the standard server client is blocked by RLS on every write.
-//
-// Transaction semantics: if the business_users insert fails, we delete the
-// newly created business to avoid an orphaned tenant record.
-// ---------------------------------------------------------------------------
 export async function createBusiness(
   formData: FormData,
 ): Promise<ActionResult<{ id: string; slug: string }>> {
@@ -86,7 +71,12 @@ export async function createBusiness(
 
   const { data: business, error: bizError } = await admin
     .from('businesses')
-    .insert({ name, slug, currency, default_language: 'el' })
+    .insert({
+      name,
+      slug,
+      currency,
+      default_language: 'el',
+    })
     .select('id, slug')
     .single()
 
@@ -94,7 +84,11 @@ export async function createBusiness(
 
   const { error: memberError } = await admin
     .from('business_users')
-    .insert({ business_id: business.id, user_id: user.id, role: 'owner' })
+    .insert({
+      business_id: business.id,
+      user_id: user.id,
+      role: 'owner',
+    })
 
   if (memberError) {
     await admin.from('businesses').delete().eq('id', business.id)
@@ -102,14 +96,9 @@ export async function createBusiness(
   }
 
   revalidatePath('/dashboard')
-  return { data: business, error: null }
+  return { data: business as { id: string; slug: string }, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// updateBusiness
-// Updates editable fields. RLS ensures the caller can only modify their own
-// business — no additional ownership check needed here.
-// ---------------------------------------------------------------------------
 export async function updateBusiness(
   businessId: string,
   updates: UpdateBusiness,
@@ -118,7 +107,7 @@ export async function updateBusiness(
 
   const { data, error } = await supabase
     .from('businesses')
-    .update(updates)
+    .update(updates as never)
     .eq('id', businessId)
     .select()
     .single()
@@ -127,14 +116,9 @@ export async function updateBusiness(
 
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
-  return { data, error: null }
+  return { data: data as Business, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// uploadLogo
-// Uploads to the private business-assets bucket then generates a 1-year
-// signed URL and persists it in businesses.logo_url.
-// ---------------------------------------------------------------------------
 export async function uploadLogo(
   businessId: string,
   formData: FormData,
@@ -170,7 +154,7 @@ export async function uploadLogo(
 
   const { error: updateError } = await supabase
     .from('businesses')
-    .update({ logo_url: signed.signedUrl })
+    .update({ logo_url: signed.signedUrl } as never)
     .eq('id', businessId)
 
   if (updateError) return { data: null, error: updateError.message }
