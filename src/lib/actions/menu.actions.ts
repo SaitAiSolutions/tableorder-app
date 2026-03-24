@@ -7,6 +7,7 @@ import type {
   Business,
   Category,
   CategoryWithProducts,
+  CustomerMenuData,
   InsertCategory,
   InsertProduct,
   InsertProductOptionChoice,
@@ -39,21 +40,19 @@ async function resolveCurrentBusinessId() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  if (error || !data?.business_id) {
+  const row = data as unknown as { business_id?: string } | null
+
+  if (error || !row?.business_id) {
     return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
   }
 
-  return { businessId: data.business_id, error: null }
+  return { businessId: row.business_id, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// getMenuForCustomer
-// Public read for customer QR route.
-// ---------------------------------------------------------------------------
 export async function getMenuForCustomer(
   slug: string,
   tableId: string,
-): Promise<ActionResult<{ business: Business; table: Table; categories: CategoryWithProducts[] }>> {
+): Promise<ActionResult<CustomerMenuData>> {
   const supabase = await createClient()
 
   const { data: business, error: bizError } = await supabase
@@ -111,18 +110,14 @@ export async function getMenuForCustomer(
 
   return {
     data: {
-      business: business as Business,
-      table: table as Table,
-      categories: (categories ?? []) as CategoryWithProducts[],
+      business: business as unknown as Business,
+      table: table as unknown as Table,
+      categories: (categories ?? []) as unknown as CategoryWithProducts[],
     },
     error: null,
   }
 }
 
-// ---------------------------------------------------------------------------
-// getCategoriesForDashboard
-// Owner view — all categories including inactive ones.
-// ---------------------------------------------------------------------------
 export async function getCategoriesForDashboard(
   businessId?: string,
 ): Promise<ActionResult<Category[]>> {
@@ -145,13 +140,9 @@ export async function getCategoriesForDashboard(
     .order('sort_order')
 
   if (error) return { data: null, error: error.message }
-  return { data: data ?? [], error: null }
+  return { data: (data ?? []) as unknown as Category[], error: null }
 }
 
-// ---------------------------------------------------------------------------
-// getProductsForDashboard
-// Owner view — all products, including unavailable.
-// ---------------------------------------------------------------------------
 export async function getProductsForDashboard(
   businessId?: string,
   categoryId?: string,
@@ -188,12 +179,9 @@ export async function getProductsForDashboard(
   const { data, error } = await query
 
   if (error) return { data: null, error: error.message }
-  return { data: (data ?? []) as Product[], error: null }
+  return { data: (data ?? []) as unknown as Product[], error: null }
 }
 
-// ---------------------------------------------------------------------------
-// Category CRUD
-// ---------------------------------------------------------------------------
 export async function createCategory(
   input: InsertCategory,
 ): Promise<ActionResult<Category>> {
@@ -201,14 +189,12 @@ export async function createCategory(
 
   const { data, error } = await supabase
     .from('categories')
-    .insert(input)
+    .insert(input as never)
     .select()
     .single()
 
   if (error) return { data: null, error: error.message }
-
-  revalidatePath('/dashboard/menu')
-  return { data, error: null }
+  return { data: data as unknown as Category, error: null }
 }
 
 export async function updateCategory(
@@ -219,7 +205,7 @@ export async function updateCategory(
 
   const { data, error } = await supabase
     .from('categories')
-    .update(updates)
+    .update(updates as never)
     .eq('id', categoryId)
     .select()
     .single()
@@ -227,7 +213,7 @@ export async function updateCategory(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
-  return { data, error: null }
+  return { data: data as unknown as Category, error: null }
 }
 
 export async function deleteCategory(categoryId: string): Promise<ActionResult> {
@@ -254,9 +240,6 @@ export async function deleteCategory(categoryId: string): Promise<ActionResult> 
   return { data: null, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// Product CRUD
-// ---------------------------------------------------------------------------
 export async function createProduct(
   input: InsertProduct,
 ): Promise<ActionResult<Product>> {
@@ -264,14 +247,14 @@ export async function createProduct(
 
   const { data, error } = await supabase
     .from('products')
-    .insert(input)
+    .insert(input as never)
     .select()
     .single()
 
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
-  return { data, error: null }
+  return { data: data as unknown as Product, error: null }
 }
 
 export async function updateProduct(
@@ -282,7 +265,7 @@ export async function updateProduct(
 
   const { data, error } = await supabase
     .from('products')
-    .update(updates)
+    .update(updates as never)
     .eq('id', productId)
     .select()
     .single()
@@ -290,7 +273,7 @@ export async function updateProduct(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
-  return { data, error: null }
+  return { data: data as unknown as Product, error: null }
 }
 
 export async function deleteProduct(productId: string): Promise<ActionResult> {
@@ -307,9 +290,6 @@ export async function deleteProduct(productId: string): Promise<ActionResult> {
   return { data: null, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// uploadProductImage
-// ---------------------------------------------------------------------------
 export async function uploadProductImage(
   businessId: string,
   productId: string,
@@ -342,7 +322,7 @@ export async function uploadProductImage(
 
   const { error: updateError } = await supabase
     .from('products')
-    .update({ image_url: publicUrl })
+    .update({ image_url: publicUrl } as never)
     .eq('id', productId)
 
   if (updateError) return { data: null, error: updateError.message }
@@ -351,9 +331,6 @@ export async function uploadProductImage(
   return { data: publicUrl, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// Option group CRUD
-// ---------------------------------------------------------------------------
 export async function createOptionGroup(
   input: InsertProductOptionGroup,
 ): Promise<ActionResult<ProductOptionGroup>> {
@@ -361,14 +338,14 @@ export async function createOptionGroup(
 
   const { data, error } = await supabase
     .from('product_option_groups')
-    .insert(input)
+    .insert(input as never)
     .select()
     .single()
 
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
-  return { data, error: null }
+  return { data: data as unknown as ProductOptionGroup, error: null }
 }
 
 export async function deleteOptionGroup(groupId: string): Promise<ActionResult> {
@@ -385,9 +362,6 @@ export async function deleteOptionGroup(groupId: string): Promise<ActionResult> 
   return { data: null, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// Option choice CRUD
-// ---------------------------------------------------------------------------
 export async function createOptionChoice(
   input: InsertProductOptionChoice,
 ): Promise<ActionResult<ProductOptionChoice>> {
@@ -395,14 +369,14 @@ export async function createOptionChoice(
 
   const { data, error } = await supabase
     .from('product_option_choices')
-    .insert(input)
+    .insert(input as never)
     .select()
     .single()
 
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
-  return { data, error: null }
+  return { data: data as unknown as ProductOptionChoice, error: null }
 }
 
 export async function deleteOptionChoice(choiceId: string): Promise<ActionResult> {
