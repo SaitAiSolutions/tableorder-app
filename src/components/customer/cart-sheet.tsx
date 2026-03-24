@@ -9,8 +9,8 @@ interface CartSheetProps {
   cart: CartItem[]
   currency: string
   onClose: () => void
-  onIncrease: (id: string) => void
-  onDecrease: (id: string) => void
+  onIncrease: (key: string) => void
+  onDecrease: (key: string) => void
   onSubmit: () => void
   submitting?: boolean
 }
@@ -72,16 +72,16 @@ export function CartSheet({
               <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
                 {cart.map((item) => (
                   <div
-                    key={item.id}
+                    key={item.key}
                     className="rounded-[22px] border border-[#eee5dc] bg-white p-4 shadow-[0_6px_20px_rgba(15,23,42,0.04)]"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="text-base font-semibold text-gray-900">
-                          {item.product_name_el}
+                          {item.name}
                         </p>
                         <p className="mt-1 text-sm text-[#7b6657]">
-                          {formatCurrency(item.unit_price, currency)} / τεμ.
+                          {formatCurrency(item.base_price, currency)} / τεμ.
                         </p>
                       </div>
 
@@ -93,7 +93,7 @@ export function CartSheet({
                     <div className="mt-4 flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => onDecrease(item.id)}
+                        onClick={() => onDecrease(item.key)}
                         className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cb] bg-[#faf7f2] text-lg font-semibold text-gray-800 transition hover:bg-[#f3ece4]"
                       >
                         −
@@ -105,7 +105,7 @@ export function CartSheet({
 
                       <button
                         type="button"
-                        onClick={() => onIncrease(item.id)}
+                        onClick={() => onIncrease(item.key)}
                         className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cb] bg-[#faf7f2] text-lg font-semibold text-gray-800 transition hover:bg-[#f3ece4]"
                       >
                         +
