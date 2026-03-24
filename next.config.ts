@@ -11,11 +11,9 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    // προσωρινά για να περάσει το production deploy
     ignoreBuildErrors: true,
   },
   eslint: {
-    // προσωρινά για να μην μπλοκάρει το build από lint
     ignoreDuringBuilds: true,
   },
 }
