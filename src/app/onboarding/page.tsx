@@ -7,7 +7,15 @@ import { Button } from '@/components/ui/button'
 import { Input, Field } from '@/components/ui/input'
 import { ErrorMessage } from '@/components/ui/error-message'
 
-const initialState = { data: null, error: null as string | null }
+type BusinessCreateState = {
+  data: { id: string; slug: string } | null
+  error: string | null
+}
+
+const initialState: BusinessCreateState = {
+  data: null,
+  error: null,
+}
 
 const CURRENCIES = [
   { value: 'EUR', label: 'EUR — Ευρώ (€)' },
@@ -17,15 +25,23 @@ const CURRENCIES = [
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const [name, setName] = useState('')
+
   const [state, action, pending] = useActionState(
-    async (prev: typeof initialState, formData: FormData) => {
+    async (
+      _prevState: BusinessCreateState,
+      formData: FormData,
+    ): Promise<BusinessCreateState> => {
       const result = await createBusiness(formData)
-      if (!result.error && result.data) router.push('/onboarding/branding')
+
+      if (!result.error && result.data) {
+        router.push('/onboarding/branding')
+      }
+
       return result
     },
     initialState,
   )
-  const [name, setName] = useState('')
 
   function toSlug(value: string) {
     return value
@@ -45,11 +61,15 @@ export default function OnboardingPage() {
             <div className="h-2 w-full rounded-full bg-gray-900" />
             <div className="h-2 w-full rounded-full bg-gray-200" />
           </div>
-          <p className="mt-2 text-xs text-gray-500">Βήμα 1 από 2 — Στοιχεία επιχείρησης</p>
+          <p className="mt-2 text-xs text-gray-500">
+            Βήμα 1 από 2 — Στοιχεία επιχείρησης
+          </p>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-900">Δημιουργία επιχείρησης</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Δημιουργία επιχείρησης
+          </h1>
           <p className="mt-1 text-sm text-gray-500">
             Αυτά τα στοιχεία θα εμφανίζονται στους πελάτες σας.
           </p>
@@ -71,7 +91,7 @@ export default function OnboardingPage() {
 
             <Field label="URL slug" htmlFor="slug" required>
               <div className="flex items-center gap-0">
-                <span className="flex h-10 items-center rounded-l-lg border border-r-0 border-gray-200 bg-gray-50 px-3 text-sm text-gray-500 whitespace-nowrap">
+                <span className="flex h-10 items-center whitespace-nowrap rounded-l-lg border border-r-0 border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">
                   /menu/
                 </span>
                 <Input
@@ -106,7 +126,7 @@ export default function OnboardingPage() {
               </select>
             </Field>
 
-            <Button type="submit" loading={pending} className="w-full mt-2">
+            <Button type="submit" loading={pending} className="mt-2 w-full">
               Συνέχεια →
             </Button>
           </form>
