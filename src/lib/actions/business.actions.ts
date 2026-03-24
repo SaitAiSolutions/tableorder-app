@@ -28,7 +28,9 @@ export async function getCurrentBusiness(): Promise<ActionResult<Business>> {
     .maybeSingle()
 
   if (error) return { data: null, error: error.message }
-  return { data: data as Business, error: null }
+  if (!data) return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
+
+  return { data: data as unknown as Business, error: null }
 }
 
 export async function createBusiness(
@@ -81,6 +83,7 @@ export async function createBusiness(
     .single()
 
   if (bizError) return { data: null, error: bizError.message }
+  if (!business) return { data: null, error: 'Αποτυχία δημιουργίας επιχείρησης.' }
 
   const { error: memberError } = await admin
     .from('business_users')
@@ -113,10 +116,11 @@ export async function updateBusiness(
     .single()
 
   if (error) return { data: null, error: error.message }
+  if (!data) return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
 
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
-  return { data: data as Business, error: null }
+  return { data: data as unknown as Business, error: null }
 }
 
 export async function uploadLogo(
