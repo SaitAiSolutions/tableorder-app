@@ -8,7 +8,11 @@ import { CartSheet } from '@/components/customer/cart-sheet'
 import { OrderConfirmation } from '@/components/customer/order-confirmation'
 import { ErrorMessage } from '@/components/ui/error-message'
 import { placeOrder } from '@/lib/actions/orders.actions'
-import type { CartItem, CategoryWithProducts, CustomerMenuData } from '@/types/database.types'
+import type {
+  CartItem,
+  CategoryWithProducts,
+  CustomerMenuData,
+} from '@/types/database.types'
 
 interface CustomerAppProps {
   data: CustomerMenuData
@@ -25,66 +29,73 @@ export function CustomerApp({ data }: CustomerAppProps) {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const activeCategory = useMemo(
-    () => data.categories.find((c) => c.id === activeCategoryId) ?? data.categories[0] ?? null,
+    () =>
+      data.categories.find((c) => c.id === activeCategoryId) ??
+      data.categories[0] ??
+      null,
     [data.categories, activeCategoryId],
   )
 
+  function buildCartKey(productId: string, choiceIds: string[] = []) {
+    const sorted = [...choiceIds].sort()
+    return `${productId}::${sorted.join(',')}`
+  }
+
   function addToCart(product: CategoryWithProducts['products'][number]) {
     setCart((prev) => {
-      const existing = prev.find(
-        (item) => item.product_id === product.id && item.options.length === 0,
-      )
+      const key = buildCartKey(product.id, [])
+
+      const existing = prev.find((item) => item.key === key)
 
       if (existing) {
         return prev.map((item) =>
-          item.id === existing.id
+          item.key === existing.key
             ? {
                 ...item,
                 quantity: item.quantity + 1,
-                line_total: (item.quantity + 1) * item.unit_price,
+                line_total: (item.quantity + 1) * item.base_price,
               }
             : item,
         )
       }
 
       const nextItem: CartItem = {
-        id: crypto.randomUUID(),
+        key,
         product_id: product.id,
-        product_name_el: product.name_el,
-        product_name_en: product.name_en ?? null,
+        name: product.name_el,
+        base_price: Number(product.price ?? 0),
         quantity: 1,
-        unit_price: Number(product.price ?? 0),
-        line_total: Number(product.price ?? 0),
         options: [],
+        line_total: Number(product.price ?? 0),
       }
 
       return [...prev, nextItem]
     })
   }
 
-  function increaseItem(id: string) {
+  function increaseItem(key: string) {
     setCart((prev) =>
       prev.map((item) =>
-        item.id === id
+        item.key === key
           ? {
               ...item,
               quantity: item.quantity + 1,
-              line_total: (item.quantity + 1) * item.unit_price,
+              line_total: (item.quantity + 1) * item.base_price,
             }
           : item,
       ),
     )
   }
 
-  function decreaseItem(id: string) {
+  function decreaseItem(key: string) {
     setCart((prev) =>
       prev
         .map((item) =>
-          item.id === id
+          item.key === key
             ? {
                 ...item,
                 quantity: item.quantity - 1,
-                line_total: (item.quantity - 1) * item.unit_price,
+                line_total: (item.quantity - 1) * item.base_price,
               }
             : item,
         )
@@ -105,7 +116,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
       p_items: cart.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
-        choice_ids: item.options.map((opt) => opt.option_choice_id),
+        choice_ids: item.options.map((opt) => opt.choice_id),
       })),
     })
 
@@ -137,7 +148,8 @@ export function CustomerApp({ data }: CustomerAppProps) {
                 {data.business.name}
               </h1>
               <p className="mt-2 text-sm text-white/80 sm:text-base">
-                Καλώς ήρθατε. Δείτε το μενού και στείλτε την παραγγελία σας εύκολα από το κινητό.
+                Καλώς ήρθατε. Δείτε το μενού και στείλτε την παραγγελία σας
+                εύκολα από το κινητό.
               </p>
 
               <div className="mt-5 inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white">
