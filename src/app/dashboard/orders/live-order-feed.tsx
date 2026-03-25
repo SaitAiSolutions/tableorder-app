@@ -9,6 +9,7 @@ interface LiveOrderFeedProps {
   initialOrders: OrderWithItems[]
   onAdvance?: (orderId: string, currentStatus: OrderWithItems['status']) => void
   onCancel?: (orderId: string) => void
+  onClearTable?: (orderId: string) => void
   pending?: boolean
 }
 
@@ -16,6 +17,7 @@ export function LiveOrderFeed({
   initialOrders,
   onAdvance,
   onCancel,
+  onClearTable,
   pending = false,
 }: LiveOrderFeedProps) {
   const { orders } = useRealtimeOrders(initialOrders)
@@ -53,6 +55,7 @@ export function LiveOrderFeed({
                 : undefined
             }
             onCancel={onCancel}
+            onClearTable={onClearTable}
           />
         ))}
       </div>

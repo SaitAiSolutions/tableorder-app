@@ -3,10 +3,19 @@
 import { useEffect, useState, useTransition } from 'react'
 import { LiveOrderFeed } from './live-order-feed'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
+import { clearTable } from '@/lib/actions/tables.actions'
 import type { OrderWithItems } from '@/types/database.types'
 
 interface OrdersClientProps {
   initialOrders: OrderWithItems[]
+}
+
+type OrderWithOptionalTable = OrderWithItems & {
+  table?: {
+    id?: string
+    table_number?: string
+    name?: string | null
+  } | null
 }
 
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
@@ -54,11 +63,35 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
     })
   }
 
+  function handleClearTable(orderId: string) {
+    const order = orders.find((o) => o.id === orderId) as OrderWithOptionalTable | undefined
+    const tableId = order?.table?.id
+
+    if (!tableId) return
+
+    const confirmed = window.confirm(
+      'Θέλετε σίγουρα να εκκαθαρίσετε το τραπέζι; Θα κλείσει η τρέχουσα συνεδρία του.',
+    )
+
+    if (!confirmed) return
+
+    startTransition(async () => {
+      const result = await clearTable(tableId)
+      if (!result.error) {
+        setOrders((prev) => prev.filter((o) => {
+          const current = o as OrderWithOptionalTable
+          return current.table?.id !== tableId
+        }))
+      }
+    })
+  }
+
   return (
     <LiveOrderFeed
       initialOrders={orders}
       onAdvance={handleAdvance}
       onCancel={handleCancel}
+      onClearTable={handleClearTable}
       pending={isPending}
     />
   )

@@ -10,6 +10,7 @@ interface OrderCardProps {
   order: OrderWithItems
   onAdvance?: (orderId: string) => void
   onCancel?: (orderId: string) => void
+  onClearTable?: (orderId: string) => void
 }
 
 type OrderWithOptionalTable = OrderWithItems & {
@@ -20,7 +21,12 @@ type OrderWithOptionalTable = OrderWithItems & {
   } | null
 }
 
-export function OrderCard({ order, onAdvance, onCancel }: OrderCardProps) {
+export function OrderCard({
+  order,
+  onAdvance,
+  onCancel,
+  onClearTable,
+}: OrderCardProps) {
   const meta = getStatusMeta(order.status)
   const safeOrder = order as OrderWithOptionalTable
 
@@ -112,6 +118,16 @@ export function OrderCard({ order, onAdvance, onCancel }: OrderCardProps) {
               Ακύρωση
             </Button>
           ) : null}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="rounded-xl text-[#6f6156] hover:bg-[#f5efe7] hover:text-[#1f2937]"
+            onClick={() => onClearTable?.(order.id)}
+          >
+            Εκκαθάριση τραπεζιού
+          </Button>
         </div>
       </div>
     </div>
