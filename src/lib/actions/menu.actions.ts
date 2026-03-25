@@ -221,7 +221,128 @@ export async function updateCategory(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: data as unknown as Category, error: null }
+}
+
+export async function moveCategoryUp(categoryId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { businessId, error: businessError } = await resolveCurrentBusinessId()
+
+  if (businessError || !businessId) {
+    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from('categories')
+    .select('id, sort_order')
+    .eq('id', categoryId)
+    .eq('business_id', businessId)
+    .single()
+
+  if (currentError || !current) {
+    return { data: null, error: 'Η κατηγορία δεν βρέθηκε.' }
+  }
+
+  const { data: previous, error: previousError } = await supabase
+    .from('categories')
+    .select('id, sort_order')
+    .eq('business_id', businessId)
+    .lt('sort_order', current.sort_order)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (previousError) {
+    return { data: null, error: previousError.message }
+  }
+
+  if (!previous) {
+    return { data: null, error: null }
+  }
+
+  const { error: firstUpdateError } = await supabase
+    .from('categories')
+    .update({ sort_order: previous.sort_order } as never)
+    .eq('id', current.id)
+
+  if (firstUpdateError) {
+    return { data: null, error: firstUpdateError.message }
+  }
+
+  const { error: secondUpdateError } = await supabase
+    .from('categories')
+    .update({ sort_order: current.sort_order } as never)
+    .eq('id', previous.id)
+
+  if (secondUpdateError) {
+    return { data: null, error: secondUpdateError.message }
+  }
+
+  revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
+  return { data: null, error: null }
+}
+
+export async function moveCategoryDown(categoryId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { businessId, error: businessError } = await resolveCurrentBusinessId()
+
+  if (businessError || !businessId) {
+    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  const { data: current, error: currentError } = await supabase
+    .from('categories')
+    .select('id, sort_order')
+    .eq('id', categoryId)
+    .eq('business_id', businessId)
+    .single()
+
+  if (currentError || !current) {
+    return { data: null, error: 'Η κατηγορία δεν βρέθηκε.' }
+  }
+
+  const { data: next, error: nextError } = await supabase
+    .from('categories')
+    .select('id, sort_order')
+    .eq('business_id', businessId)
+    .gt('sort_order', current.sort_order)
+    .order('sort_order', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (nextError) {
+    return { data: null, error: nextError.message }
+  }
+
+  if (!next) {
+    return { data: null, error: null }
+  }
+
+  const { error: firstUpdateError } = await supabase
+    .from('categories')
+    .update({ sort_order: next.sort_order } as never)
+    .eq('id', current.id)
+
+  if (firstUpdateError) {
+    return { data: null, error: firstUpdateError.message }
+  }
+
+  const { error: secondUpdateError } = await supabase
+    .from('categories')
+    .update({ sort_order: current.sort_order } as never)
+    .eq('id', next.id)
+
+  if (secondUpdateError) {
+    return { data: null, error: secondUpdateError.message }
+  }
+
+  revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
+  return { data: null, error: null }
 }
 
 export async function deleteCategory(categoryId: string): Promise<ActionResult> {
@@ -245,6 +366,7 @@ export async function deleteCategory(categoryId: string): Promise<ActionResult> 
   }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: null, error: null }
 }
 
@@ -262,6 +384,7 @@ export async function createProduct(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: data as unknown as Product, error: null }
 }
 
@@ -281,6 +404,7 @@ export async function updateProduct(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: data as unknown as Product, error: null }
 }
 
@@ -296,7 +420,6 @@ export async function deleteProduct(productId: string): Promise<ActionResult> {
 
   revalidatePath('/dashboard/menu')
   revalidatePath('/dashboard', 'layout')
-
   return { data: null, error: null }
 }
 
@@ -359,6 +482,7 @@ export async function uploadProductImage(
   if (updateError) return { data: null, error: updateError.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: publicUrl, error: null }
 }
 
@@ -376,6 +500,7 @@ export async function createOptionGroup(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: data as unknown as ProductOptionGroup, error: null }
 }
 
@@ -390,6 +515,7 @@ export async function deleteOptionGroup(groupId: string): Promise<ActionResult> 
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: null, error: null }
 }
 
@@ -407,6 +533,7 @@ export async function createOptionChoice(
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: data as unknown as ProductOptionChoice, error: null }
 }
 
@@ -421,5 +548,6 @@ export async function deleteOptionChoice(choiceId: string): Promise<ActionResult
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
   return { data: null, error: null }
 }
