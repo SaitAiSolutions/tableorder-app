@@ -3,6 +3,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type {
   Business,
   Category,
@@ -53,9 +54,9 @@ export async function getMenuForCustomer(
   slug: string,
   tableId: string,
 ): Promise<ActionResult<CustomerMenuData>> {
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
-  const { data: businessData, error: bizError } = await supabase
+  const { data: businessData, error: bizError } = await admin
     .from('businesses')
     .select('*')
     .eq('slug', slug)
@@ -68,7 +69,7 @@ export async function getMenuForCustomer(
     return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
   }
 
-  const { data: tableData, error: tableError } = await supabase
+  const { data: tableData, error: tableError } = await admin
     .from('tables')
     .select('*')
     .eq('id', tableId)
@@ -82,7 +83,7 @@ export async function getMenuForCustomer(
     return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
   }
 
-  const { data: categoriesData, error: menuError } = await supabase
+  const { data: categoriesData, error: menuError } = await admin
     .from('categories')
     .select(`
       *,

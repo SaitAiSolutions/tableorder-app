@@ -9,6 +9,9 @@ interface PageProps {
   }>
 }
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function CustomerMenuPage({ params }: PageProps) {
   const { slug, tableId } = await params
 
