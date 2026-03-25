@@ -1,4 +1,3 @@
-// Path: src/lib/actions/tables.actions.ts
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -17,13 +16,32 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
-// ---------------------------------------------------------------------------
-// getTablesWithSessions
-// Primary query for the dashboard tables grid. Returns all active tables for
-// a business with their current active session (if any), all orders in that
-// session, and a computed session_total (sum of non-cancelled order totals).
-// Cleared sessions (is_active = false) are excluded — they are historical.
-// ---------------------------------------------------------------------------
+async function resolveCurrentBusinessId() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { businessId: null, error: 'Not authenticated' }
+  }
+
+  const { data: businessRow, error: businessError } = await supabase
+    .from('business_users')
+    .select('business_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const row = businessRow as { business_id?: string } | null
+
+  if (businessError || !row?.business_id) {
+    return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
+  }
+
+  return { businessId: row.business_id, error: null }
+}
+
 export async function getTablesWithSessions(
   businessId?: string,
 ): Promise<ActionResult<TableWithActiveSession[]>> {
@@ -32,25 +50,14 @@ export async function getTablesWithSessions(
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { businessId: currentBusinessId, error } =
+      await resolveCurrentBusinessId()
 
-    if (!user) {
-      return { data: null, error: 'Not authenticated' }
+    if (error || !currentBusinessId) {
+      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
 
-    const { data: businessRow, error: businessError } = await supabase
-      .from('business_users')
-      .select('business_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (businessError || !businessRow?.business_id) {
-      return { data: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
-    }
-
-    resolvedBusinessId = businessRow.business_id
+    resolvedBusinessId = currentBusinessId
   }
 
   const { data, error } = await supabase
@@ -104,11 +111,6 @@ export async function getTablesWithSessions(
   return { data: enriched, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// getSessionDetail
-// Full detail for one session: all orders, items, options, and session_total.
-// Used by the table detail modal / expanded card view.
-// ---------------------------------------------------------------------------
 export async function getSessionDetail(
   sessionId: string,
 ): Promise<ActionResult<SessionWithOrders>> {
@@ -142,32 +144,15 @@ export async function getSessionDetail(
   }
 }
 
-// ---------------------------------------------------------------------------
-// createTable
-// Resolves the current user's business_id and inserts the table with the
-// correct tenant context so the RLS policy passes.
-// ---------------------------------------------------------------------------
 export async function createTable(
   formData: FormData,
 ): Promise<ActionResult<Table>> {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { businessId, error: businessError } = await resolveCurrentBusinessId()
 
-  if (!user) {
-    return { data: null, error: 'Not authenticated' }
-  }
-
-  const { data: businessRow, error: businessError } = await supabase
-    .from('business_users')
-    .select('business_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (businessError || !businessRow?.business_id) {
-    return { data: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
+  if (businessError || !businessId) {
+    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
   const table_number = (formData.get('table_number') as string)?.trim()
@@ -178,14 +163,14 @@ export async function createTable(
   }
 
   const payload: InsertTable = {
-    business_id: businessRow.business_id,
+    business_id: businessId,
     table_number,
     name: name || null,
   }
 
   const { data, error } = await supabase
     .from('tables')
-    .insert(payload)
+    .insert(payload as never)
     .select()
     .single()
 
@@ -203,12 +188,9 @@ export async function createTable(
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
 
-  return { data, error: null }
+  return { data: data as Table, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// updateTable
-// ---------------------------------------------------------------------------
 export async function updateTable(
   tableId: string,
   updates: UpdateTable,
@@ -217,7 +199,7 @@ export async function updateTable(
 
   const { data, error } = await supabase
     .from('tables')
-    .update(updates)
+    .update(updates as never)
     .eq('id', tableId)
     .select()
     .single()
@@ -226,41 +208,44 @@ export async function updateTable(
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
-  return { data, error: null }
+  revalidatePath('/dashboard', 'layout')
+
+  return { data: data as Table, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// clearTable
-// Calls the clear_table SECURITY DEFINER DB function which closes the active
-// session (is_active = false, cleared_at = now()). The next order on this
-// table will open a fresh session automatically.
-// ---------------------------------------------------------------------------
-export async function clearTable(
-  businessId: string,
-  tableId: string,
-): Promise<ActionResult> {
+export async function clearTable(tableId: string): Promise<ActionResult> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase.rpc('clear_table', {
+  const { businessId, error: businessError } = await resolveCurrentBusinessId()
+
+  if (businessError || !businessId) {
+    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  const { data, error } = await supabase.rpc('clear_table' as never, {
     p_business_id: businessId,
     p_table_id: tableId,
-  })
+  } as never)
 
   if (error) return { data: null, error: error.message }
 
-  if (!data.success) {
-    return { data: null, error: data.message ?? 'Αποτυχία εκκαθάρισης τραπεζιού.' }
+  const result = data as { success?: boolean; message?: string } | null
+
+  if (!result?.success) {
+    return {
+      data: null,
+      error: result?.message ?? 'Αποτυχία εκκαθάρισης τραπεζιού.',
+    }
   }
 
   revalidatePath('/dashboard/tables')
+  revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard', 'layout')
+
   return { data: null, error: null }
 }
 
-// ---------------------------------------------------------------------------
-// transferOrder
-// Calls the transfer_order SECURITY DEFINER DB function. Moves one order to
-// an empty target table. Target must have no active session (MVP constraint).
-// ---------------------------------------------------------------------------
 export async function transferOrder(
   businessId: string,
   orderId: string,
@@ -268,11 +253,11 @@ export async function transferOrder(
 ): Promise<ActionResult> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase.rpc('transfer_order', {
+  const { data, error } = await supabase.rpc('transfer_order' as never, {
     p_business_id: businessId,
     p_order_id: orderId,
     p_target_table_id: targetTableId,
-  })
+  } as never)
 
   if (error) {
     if (error.message.includes('target_table_occupied')) {
@@ -290,6 +275,15 @@ export async function transferOrder(
     return { data: null, error: error.message }
   }
 
+  const result = data as { success?: boolean } | null
+
+  if (!result?.success) {
+    return { data: null, error: 'Αποτυχία μεταφοράς παραγγελίας.' }
+  }
+
   revalidatePath('/dashboard/tables')
+  revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard', 'layout')
+
   return { data: null, error: null }
 }

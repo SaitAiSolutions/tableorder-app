@@ -130,7 +130,8 @@ export async function getCategoriesForDashboard(
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    const { businessId: currentBusinessId, error } =
+      await resolveCurrentBusinessId()
     if (error || !currentBusinessId) {
       return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
@@ -156,7 +157,8 @@ export async function getProductsForDashboard(
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    const { businessId: currentBusinessId, error } =
+      await resolveCurrentBusinessId()
     if (error || !currentBusinessId) {
       return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
@@ -166,7 +168,7 @@ export async function getProductsForDashboard(
   let query = supabase
     .from('products')
     .select(`
-      * ,
+      *,
       category:categories (
         id,
         name_el,
@@ -293,6 +295,8 @@ export async function deleteProduct(productId: string): Promise<ActionResult> {
   if (error) return { data: null, error: error.message }
 
   revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
+
   return { data: null, error: null }
 }
 

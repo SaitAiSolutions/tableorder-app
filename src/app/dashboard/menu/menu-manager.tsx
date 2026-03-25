@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import {
   createCategory,
   createProduct,
+  deleteProduct,
   uploadProductImage,
 } from '@/lib/actions/menu.actions'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ export function MenuManager({
   const [categorySuccess, setCategorySuccess] = useState<string | null>(null)
   const [productSuccess, setProductSuccess] = useState<string | null>(null)
   const [selectedProductFileName, setSelectedProductFileName] = useState('')
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 
   function handleCreateCategory(formData: FormData) {
     startTransition(async () => {
@@ -121,6 +123,31 @@ export function MenuManager({
 
       setSelectedProductFileName('')
       setProductSuccess('Το προϊόν δημιουργήθηκε.')
+    })
+  }
+
+  function handleDeleteProduct(productId: string) {
+    const confirmed = window.confirm(
+      'Θέλετε σίγουρα να διαγράψετε αυτό το προϊόν;',
+    )
+
+    if (!confirmed) return
+
+    startTransition(async () => {
+      setProductError(null)
+      setProductSuccess(null)
+      setDeletingProductId(productId)
+
+      const result = await deleteProduct(productId)
+
+      if (result.error) {
+        setProductError(result.error)
+        setDeletingProductId(null)
+        return
+      }
+
+      setDeletingProductId(null)
+      setProductSuccess('Το προϊόν διαγράφηκε.')
     })
   }
 
@@ -351,37 +378,52 @@ export function MenuManager({
                 return (
                   <div
                     key={product.id}
-                    className="flex items-center justify-between gap-4 rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
+                    className="rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e7ddd3] bg-white">
-                        {imageUrl ? (
-                          <Image
-                            src={imageUrl}
-                            alt={product.name_el}
-                            width={56}
-                            height={56}
-                            className="h-full w-full object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <span className="text-[11px] text-[#8b715d]">No image</span>
-                        )}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e7ddd3] bg-white">
+                          {imageUrl ? (
+                            <Image
+                              src={imageUrl}
+                              alt={product.name_el}
+                              width={56}
+                              height={56}
+                              className="h-full w-full object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <span className="text-[11px] text-[#8b715d]">No image</span>
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {product.name_el}
+                          </p>
+                          <p className="mt-1 truncate text-xs text-[#7b6657]">
+                            {product.description_el ?? 'Χωρίς περιγραφή'}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {product.name_el}
-                        </p>
-                        <p className="mt-1 truncate text-xs text-[#7b6657]">
-                          {product.description_el ?? 'Χωρίς περιγραφή'}
-                        </p>
-                      </div>
+                      <p className="whitespace-nowrap text-sm font-semibold text-gray-900">
+                        {formatCurrency(Number(product.price ?? 0), currency)}
+                      </p>
                     </div>
 
-                    <p className="whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {formatCurrency(Number(product.price ?? 0), currency)}
-                    </p>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                        loading={deletingProductId === product.id && isPending}
+                        onClick={() => handleDeleteProduct(product.id)}
+                      >
+                        Διαγραφή
+                      </Button>
+                    </div>
                   </div>
                 )
               })}
