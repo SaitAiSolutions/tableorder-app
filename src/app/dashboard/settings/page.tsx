@@ -25,7 +25,10 @@ export default async function DashboardSettingsPage() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SettingsForm business={business} />
-        <TableManager tables={tables ?? []} />
+        <TableManager
+          tables={tables ?? []}
+          businessSlug={business.slug}
+        />
       </div>
     </div>
   )

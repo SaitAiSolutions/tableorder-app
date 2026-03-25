@@ -3,18 +3,21 @@
 import { useState, useTransition } from 'react'
 import type { TableWithActiveSession } from '@/types/database.types'
 import { createTable } from '@/lib/actions/tables.actions'
+import { generateTableUrl } from '@/lib/utils/generate-table-url'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { ErrorMessage } from '@/components/ui/error-message'
 
 interface TableManagerProps {
   tables: TableWithActiveSession[]
+  businessSlug: string
 }
 
-export function TableManager({ tables }: TableManagerProps) {
+export function TableManager({ tables, businessSlug }: TableManagerProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [copiedTableId, setCopiedTableId] = useState<string | null>(null)
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -30,6 +33,16 @@ export function TableManager({ tables }: TableManagerProps) {
 
       setSuccess('Το τραπέζι δημιουργήθηκε.')
     })
+  }
+
+  async function handleCopy(url: string, tableId: string) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedTableId(tableId)
+      setTimeout(() => setCopiedTableId(null), 2000)
+    } catch {
+      setError('Αποτυχία αντιγραφής συνδέσμου.')
+    }
   }
 
   return (
@@ -91,32 +104,66 @@ export function TableManager({ tables }: TableManagerProps) {
             Δεν υπάρχουν τραπέζια ακόμα.
           </div>
         ) : (
-          <div className="space-y-3">
-            {tables.map((table) => (
-              <div
-                key={table.id}
-                className="flex items-center justify-between rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Τραπέζι {table.table_number}
-                  </p>
-                  <p className="mt-1 text-xs text-[#7b6657]">
-                    {table.name ?? 'Χωρίς σημείωση'}
-                  </p>
-                </div>
+          <div className="space-y-4">
+            {tables.map((table) => {
+              const customerUrl = generateTableUrl(businessSlug, table.id)
 
-                <span
-                  className={
-                    table.active_session
-                      ? 'rounded-full bg-[#fce7d6] px-3 py-1 text-xs font-medium text-[#9a5b24]'
-                      : 'rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]'
-                  }
+              return (
+                <div
+                  key={table.id}
+                  className="rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-4"
                 >
-                  {table.active_session ? 'Κατειλημμένο' : 'Ελεύθερο'}
-                </span>
-              </div>
-            ))}
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        Τραπέζι {table.table_number}
+                      </p>
+                      <p className="mt-1 text-xs text-[#7b6657]">
+                        {table.name ?? 'Χωρίς σημείωση'}
+                      </p>
+                    </div>
+
+                    <span
+                      className={
+                        table.active_session
+                          ? 'rounded-full bg-[#fce7d6] px-3 py-1 text-xs font-medium text-[#9a5b24]'
+                          : 'rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]'
+                      }
+                    >
+                      {table.active_session ? 'Κατειλημμένο' : 'Ελεύθερο'}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white p-3">
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8b715d]">
+                      Customer link
+                    </p>
+                    <p className="mt-2 break-all text-sm text-gray-700">
+                      {customerUrl}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        className="rounded-2xl"
+                        onClick={() => handleCopy(customerUrl, table.id)}
+                      >
+                        {copiedTableId === table.id ? 'Αντιγράφηκε' : 'Copy link'}
+                      </Button>
+
+                      <a
+                        href={customerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center rounded-2xl border border-[#d9cec3] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] transition hover:bg-[#f6efe8]"
+                      >
+                        Άνοιγμα
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
