@@ -40,6 +40,7 @@ export function MenuManager({
 
   const [selectedProductFileName, setSelectedProductFileName] = useState('')
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
+
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
 
@@ -272,7 +273,7 @@ export function MenuManager({
     setEditingProductFileName('')
   }
 
-  function handleSaveProduct(productId: string, originalImageUrl: string | null) {
+  function handleSaveProduct(productId: string) {
     startTransition(async () => {
       setProductError(null)
       setProductSuccess(null)
@@ -326,17 +327,8 @@ export function MenuManager({
         }
       }
 
-      setEditingProductId(null)
-      setEditingProductName('')
-      setEditingProductDescription('')
-      setEditingProductPrice('')
-      setEditingProductCategoryId('')
-      setEditingProductFileName('')
-      setProductSuccess(
-        file || originalImageUrl
-          ? 'Το προϊόν ενημερώθηκε.'
-          : 'Το προϊόν ενημερώθηκε.',
-      )
+      cancelEditProduct()
+      setProductSuccess('Το προϊόν ενημερώθηκε.')
     })
   }
 
@@ -753,7 +745,7 @@ export function MenuManager({
                             type="button"
                             className="rounded-xl"
                             loading={isPending}
-                            onClick={() => handleSaveProduct(product.id, imageUrl)}
+                            onClick={() => handleSaveProduct(product.id)}
                           >
                             Αποθήκευση
                           </Button>
