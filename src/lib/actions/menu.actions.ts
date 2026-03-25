@@ -1,4 +1,3 @@
-// Path: src/lib/actions/menu.actions.ts
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -167,7 +166,7 @@ export async function getProductsForDashboard(
   let query = supabase
     .from('products')
     .select(`
-      *,
+      * ,
       category:categories (
         id,
         name_el,
@@ -302,7 +301,7 @@ export async function uploadProductImage(
   productId: string,
   formData: FormData,
 ): Promise<ActionResult<string>> {
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
   const file = formData.get('image') as File | null
 
@@ -314,20 +313,41 @@ export async function uploadProductImage(
     return { data: null, error: 'Μέγιστο μέγεθος αρχείου: 5 MB.' }
   }
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `${businessId}/${productId}.${ext}`
+  const allowedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/svg+xml',
+  ]
 
-  const { error: uploadError } = await supabase.storage
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      data: null,
+      error: 'Επιτρέπονται μόνο JPG, PNG, WEBP ή SVG αρχεία.',
+    }
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
+  const path = `${businessId}/${productId}-${Date.now()}.${ext}`
+
+  const { error: uploadError } = await admin.storage
     .from('product-images')
-    .upload(path, file, { upsert: true, contentType: file.type })
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+    })
 
   if (uploadError) return { data: null, error: uploadError.message }
 
   const {
     data: { publicUrl },
-  } = supabase.storage.from('product-images').getPublicUrl(path)
+  } = admin.storage.from('product-images').getPublicUrl(path)
 
-  const { error: updateError } = await supabase
+  if (!publicUrl) {
+    return { data: null, error: 'Αποτυχία δημιουργίας URL εικόνας.' }
+  }
+
+  const { error: updateError } = await admin
     .from('products')
     .update({ image_url: publicUrl } as never)
     .eq('id', productId)

@@ -1,66 +1,401 @@
-import { Button } from '@/components/ui/button'
-import { formatCurrency } from '@/lib/utils/format-currency'
-import type { CategoryWithProducts } from '@/types/database.types'
+// Path: src/lib/actions/menu.actions.ts
+'use server'
 
-interface ProductGridProps {
-  category: CategoryWithProducts
-  currency: string
-  onAdd: (product: CategoryWithProducts['products'][number]) => void
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import type {
+  Business,
+  Category,
+  CategoryWithProducts,
+  CustomerMenuData,
+  InsertCategory,
+  InsertProduct,
+  InsertProductOptionChoice,
+  InsertProductOptionGroup,
+  Product,
+  ProductOptionChoice,
+  ProductOptionGroup,
+  Table,
+  UpdateCategory,
+  UpdateProduct,
+} from '@/types/database.types'
+
+interface ActionResult<T = null> {
+  data: T | null
+  error: string | null
 }
 
-export function ProductGrid({ category, currency, onAdd }: ProductGridProps) {
-  if (!category.products || category.products.length === 0) {
-    return (
-      <div className="rounded-[24px] border border-dashed border-[#d9cec3] bg-white p-12 text-center text-sm text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-        Δεν υπάρχουν προϊόντα σε αυτή την κατηγορία.
-      </div>
-    )
+async function resolveCurrentBusinessId() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { businessId: null, error: 'Not authenticated' }
+
+  const { data, error } = await supabase
+    .from('business_users')
+    .select('business_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const row = data as unknown as { business_id?: string } | null
+
+  if (error || !row?.business_id) {
+    return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
   }
 
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {category.products.map((product) => (
-        <div
-          key={product.id}
-          className="group overflow-hidden rounded-[24px] border border-black/5 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_38px_rgba(15,23,42,0.08)]"
-        >
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold tracking-tight text-gray-900">
-                {product.name_el}
-              </h3>
-              {product.description_el ? (
-                <p className="mt-2 text-sm leading-6 text-gray-500">
-                  {product.description_el}
-                </p>
-              ) : (
-                <p className="mt-2 text-sm leading-6 text-gray-400">
-                  Χωρίς περιγραφή
-                </p>
-              )}
-            </div>
-          </div>
+  return { businessId: row.business_id, error: null }
+}
 
-          <div className="mt-6 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.12em] text-[#8a6d58]">
-                Τιμή
-              </p>
-              <p className="mt-1 text-xl font-semibold text-gray-900">
-                {formatCurrency(Number(product.price ?? 0), currency)}
-              </p>
-            </div>
+export async function getMenuForCustomer(
+  slug: string,
+  tableId: string,
+): Promise<ActionResult<CustomerMenuData>> {
+  const admin = createAdminClient()
 
-            <Button
-              size="sm"
-              className="rounded-xl bg-[#1f2937] px-4 py-2 text-white hover:bg-[#111827]"
-              onClick={() => onAdd(product)}
-            >
-              Προσθήκη
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+  const { data: businessData, error: bizError } = await admin
+    .from('businesses')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  const business = businessData as unknown as Business | null
+
+  if (bizError || !business) {
+    return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
+  }
+
+  const { data: tableData, error: tableError } = await admin
+    .from('tables')
+    .select('*')
+    .eq('id', tableId)
+    .eq('business_id', business.id)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  const table = tableData as unknown as Table | null
+
+  if (tableError || !table) {
+    return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
+  }
+
+  const { data: categoriesData, error: menuError } = await admin
+    .from('categories')
+    .select(`
+      *,
+      products (
+        *,
+        product_option_groups (
+          *,
+          product_option_choices (*)
+        )
+      )
+    `)
+    .eq('business_id', business.id)
+    .eq('is_active', true)
+    .eq('products.is_available', true)
+    .order('sort_order', { ascending: true })
+    .order('sort_order', { referencedTable: 'products', ascending: true })
+    .order('sort_order', {
+      referencedTable: 'products.product_option_groups',
+      ascending: true,
+    })
+    .order('sort_order', {
+      referencedTable: 'products.product_option_groups.product_option_choices',
+      ascending: true,
+    })
+
+  if (menuError) {
+    return { data: null, error: menuError.message }
+  }
+
+  return {
+    data: {
+      business,
+      table,
+      categories: (categoriesData ?? []) as unknown as CategoryWithProducts[],
+    },
+    error: null,
+  }
+}
+
+export async function getCategoriesForDashboard(
+  businessId?: string,
+): Promise<ActionResult<Category[]>> {
+  const supabase = await createClient()
+
+  let resolvedBusinessId = businessId
+
+  if (!resolvedBusinessId) {
+    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    if (error || !currentBusinessId) {
+      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    }
+    resolvedBusinessId = currentBusinessId
+  }
+
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('business_id', resolvedBusinessId)
+    .order('sort_order')
+
+  if (error) return { data: null, error: error.message }
+  return { data: (data ?? []) as unknown as Category[], error: null }
+}
+
+export async function getProductsForDashboard(
+  businessId?: string,
+  categoryId?: string,
+): Promise<ActionResult<Product[]>> {
+  const supabase = await createClient()
+
+  let resolvedBusinessId = businessId
+
+  if (!resolvedBusinessId) {
+    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    if (error || !currentBusinessId) {
+      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    }
+    resolvedBusinessId = currentBusinessId
+  }
+
+  let query = supabase
+    .from('products')
+    .select(`
+      *,
+      category:categories (
+        id,
+        name_el,
+        name_en
+      )
+    `)
+    .eq('business_id', resolvedBusinessId)
+    .order('sort_order')
+
+  if (categoryId) {
+    query = query.eq('category_id', categoryId)
+  }
+
+  const { data, error } = await query
+
+  if (error) return { data: null, error: error.message }
+  return { data: (data ?? []) as unknown as Product[], error: null }
+}
+
+export async function createCategory(
+  input: InsertCategory,
+): Promise<ActionResult<Category>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('categories')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Category, error: null }
+}
+
+export async function updateCategory(
+  categoryId: string,
+  updates: UpdateCategory,
+): Promise<ActionResult<Category>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('categories')
+    .update(updates as never)
+    .eq('id', categoryId)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Category, error: null }
+}
+
+export async function deleteCategory(categoryId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', categoryId)
+
+  if (error) {
+    if (error.code === '23503') {
+      return {
+        data: null,
+        error:
+          'Δεν μπορείτε να διαγράψετε κατηγορία που έχει προϊόντα. Διαγράψτε ή μετακινήστε πρώτα τα προϊόντα.',
+      }
+    }
+
+    return { data: null, error: error.message }
+  }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
+}
+
+export async function createProduct(
+  input: InsertProduct,
+): Promise<ActionResult<Product>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('products')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Product, error: null }
+}
+
+export async function updateProduct(
+  productId: string,
+  updates: UpdateProduct,
+): Promise<ActionResult<Product>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('products')
+    .update(updates as never)
+    .eq('id', productId)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Product, error: null }
+}
+
+export async function deleteProduct(productId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', productId)
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
+}
+
+export async function uploadProductImage(
+  businessId: string,
+  productId: string,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const supabase = await createClient()
+
+  const file = formData.get('image') as File | null
+
+  if (!file || file.size === 0) {
+    return { data: null, error: 'Δεν επιλέχθηκε αρχείο.' }
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return { data: null, error: 'Μέγιστο μέγεθος αρχείου: 5 MB.' }
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `${businessId}/${productId}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (uploadError) return { data: null, error: uploadError.message }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from('product-images').getPublicUrl(path)
+
+  const { error: updateError } = await supabase
+    .from('products')
+    .update({ image_url: publicUrl } as never)
+    .eq('id', productId)
+
+  if (updateError) return { data: null, error: updateError.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: publicUrl, error: null }
+}
+
+export async function createOptionGroup(
+  input: InsertProductOptionGroup,
+): Promise<ActionResult<ProductOptionGroup>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('product_option_groups')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as ProductOptionGroup, error: null }
+}
+
+export async function deleteOptionGroup(groupId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('product_option_groups')
+    .delete()
+    .eq('id', groupId)
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
+}
+
+export async function createOptionChoice(
+  input: InsertProductOptionChoice,
+): Promise<ActionResult<ProductOptionChoice>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('product_option_choices')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as ProductOptionChoice, error: null }
+}
+
+export async function deleteOptionChoice(choiceId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('product_option_choices')
+    .delete()
+    .eq('id', choiceId)
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
 }

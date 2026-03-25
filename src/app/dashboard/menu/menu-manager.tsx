@@ -1,296 +1,401 @@
-'use client'
+// Path: src/lib/actions/menu.actions.ts
+'use server'
 
-import { useState, useTransition } from 'react'
-import { createCategory, createProduct } from '@/lib/actions/menu.actions'
-import { Button } from '@/components/ui/button'
-import { Input, Field } from '@/components/ui/input'
-import { ErrorMessage } from '@/components/ui/error-message'
-import { formatCurrency } from '@/lib/utils/format-currency'
-import type { Category, Product } from '@/types/database.types'
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import type {
+  Business,
+  Category,
+  CategoryWithProducts,
+  CustomerMenuData,
+  InsertCategory,
+  InsertProduct,
+  InsertProductOptionChoice,
+  InsertProductOptionGroup,
+  Product,
+  ProductOptionChoice,
+  ProductOptionGroup,
+  Table,
+  UpdateCategory,
+  UpdateProduct,
+} from '@/types/database.types'
 
-interface MenuManagerProps {
-  businessId: string
-  currency: string
-  categories: Category[]
-  products: Product[]
+interface ActionResult<T = null> {
+  data: T | null
+  error: string | null
 }
 
-export function MenuManager({
-  businessId,
-  currency,
-  categories,
-  products,
-}: MenuManagerProps) {
-  const [isPending, startTransition] = useTransition()
-  const [categoryError, setCategoryError] = useState<string | null>(null)
-  const [productError, setProductError] = useState<string | null>(null)
-  const [categorySuccess, setCategorySuccess] = useState<string | null>(null)
-  const [productSuccess, setProductSuccess] = useState<string | null>(null)
+async function resolveCurrentBusinessId() {
+  const supabase = await createClient()
 
-  function handleCreateCategory(formData: FormData) {
-    startTransition(async () => {
-      setCategoryError(null)
-      setCategorySuccess(null)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-      const name = (formData.get('name_el') as string)?.trim()
-      if (!name) {
-        setCategoryError('Απαιτείται όνομα κατηγορίας.')
-        return
-      }
+  if (!user) return { businessId: null, error: 'Not authenticated' }
 
-      const result = await createCategory({
-        business_id: businessId,
-        name_el: name,
-        name_en: null,
-        sort_order: categories.length + 1,
-        is_active: true,
-      })
+  const { data, error } = await supabase
+    .from('business_users')
+    .select('business_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
 
-      if (result.error) {
-        setCategoryError(result.error)
-        return
-      }
+  const row = data as unknown as { business_id?: string } | null
 
-      setCategorySuccess('Η κατηγορία δημιουργήθηκε.')
-    })
+  if (error || !row?.business_id) {
+    return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
   }
 
-  function handleCreateProduct(formData: FormData) {
-    startTransition(async () => {
-      setProductError(null)
-      setProductSuccess(null)
+  return { businessId: row.business_id, error: null }
+}
 
-      const name = (formData.get('name_el') as string)?.trim()
-      const categoryId = (formData.get('category_id') as string)?.trim()
-      const rawPrice = (formData.get('price') as string)?.trim()
+export async function getMenuForCustomer(
+  slug: string,
+  tableId: string,
+): Promise<ActionResult<CustomerMenuData>> {
+  const admin = createAdminClient()
 
-      if (!name || !categoryId || !rawPrice) {
-        setProductError('Συμπληρώστε όνομα, κατηγορία και τιμή.')
-        return
-      }
+  const { data: businessData, error: bizError } = await admin
+    .from('businesses')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
 
-      const price = Number(rawPrice.replace(',', '.'))
-      if (Number.isNaN(price) || price < 0) {
-        setProductError('Η τιμή δεν είναι έγκυρη.')
-        return
-      }
+  const business = businessData as unknown as Business | null
 
-      const result = await createProduct({
-        business_id: businessId,
-        category_id: categoryId,
-        name_el: name,
-        name_en: null,
-        description_el:
-          ((formData.get('description_el') as string) || '').trim() || null,
-        description_en: null,
-        price,
-        image_url: null,
-        is_available: true,
-        sort_order: products.length + 1,
-      })
-
-      if (result.error) {
-        setProductError(result.error)
-        return
-      }
-
-      setProductSuccess('Το προϊόν δημιουργήθηκε.')
-    })
+  if (bizError || !business) {
+    return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
   }
 
-  return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <div className="space-y-6">
-        <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div className="mb-5">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-              Category setup
-            </p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-              Νέα κατηγορία
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-              Προσθέστε νέα κατηγορία ώστε να οργανώσετε καλύτερα το μενού σας.
-            </p>
-          </div>
+  const { data: tableData, error: tableError } = await admin
+    .from('tables')
+    .select('*')
+    .eq('id', tableId)
+    .eq('business_id', business.id)
+    .eq('is_active', true)
+    .maybeSingle()
 
-          <form action={handleCreateCategory} className="space-y-4">
-            <ErrorMessage message={categoryError} />
-            {categorySuccess ? (
-              <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {categorySuccess}
-              </div>
-            ) : null}
+  const table = tableData as unknown as Table | null
 
-            <Field label="Όνομα κατηγορίας" htmlFor="name_el" required>
-              <Input
-                id="name_el"
-                name="name_el"
-                placeholder="π.χ. Καφέδες"
-                required
-                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
-              />
-            </Field>
+  if (tableError || !table) {
+    return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
+  }
 
-            <Button type="submit" loading={isPending} className="rounded-2xl">
-              Δημιουργία κατηγορίας
-            </Button>
-          </form>
-        </div>
+  const { data: categoriesData, error: menuError } = await admin
+    .from('categories')
+    .select(`
+      *,
+      products (
+        *,
+        product_option_groups (
+          *,
+          product_option_choices (*)
+        )
+      )
+    `)
+    .eq('business_id', business.id)
+    .eq('is_active', true)
+    .eq('products.is_available', true)
+    .order('sort_order', { ascending: true })
+    .order('sort_order', { referencedTable: 'products', ascending: true })
+    .order('sort_order', {
+      referencedTable: 'products.product_option_groups',
+      ascending: true,
+    })
+    .order('sort_order', {
+      referencedTable: 'products.product_option_groups.product_option_choices',
+      ascending: true,
+    })
 
-        <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div className="mb-5">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-              Existing categories
-            </p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-              Υπάρχουσες κατηγορίες
-            </h3>
-          </div>
+  if (menuError) {
+    return { data: null, error: menuError.message }
+  }
 
-          {categories.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#d8cdc1] bg-[#fffdfa] px-4 py-8 text-center text-sm text-[#7b6657]">
-              Δεν υπάρχουν κατηγορίες ακόμα.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {categories.map((category, index) => (
-                <div
-                  key={category.id}
-                  className="flex items-center justify-between rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {category.name_el}
-                    </p>
-                    <p className="mt-1 text-xs text-[#7b6657]">
-                      Κατηγορία #{index + 1}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs text-[#7b6657] shadow-sm">
-                    Ενεργή
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+  return {
+    data: {
+      business,
+      table,
+      categories: (categoriesData ?? []) as unknown as CategoryWithProducts[],
+    },
+    error: null,
+  }
+}
 
-      <div className="space-y-6">
-        <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div className="mb-5">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-              Product setup
-            </p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-              Νέο προϊόν
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-              Προσθέστε προϊόν σε υπάρχουσα κατηγορία για να εμφανιστεί στο customer menu.
-            </p>
-          </div>
+export async function getCategoriesForDashboard(
+  businessId?: string,
+): Promise<ActionResult<Category[]>> {
+  const supabase = await createClient()
 
-          <form action={handleCreateProduct} className="space-y-4">
-            <ErrorMessage message={productError} />
-            {productSuccess ? (
-              <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {productSuccess}
-              </div>
-            ) : null}
+  let resolvedBusinessId = businessId
 
-            <Field label="Όνομα προϊόντος" htmlFor="product_name_el" required>
-              <Input
-                id="product_name_el"
-                name="name_el"
-                placeholder="π.χ. Freddo Espresso"
-                required
-                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
-              />
-            </Field>
+  if (!resolvedBusinessId) {
+    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    if (error || !currentBusinessId) {
+      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    }
+    resolvedBusinessId = currentBusinessId
+  }
 
-            <Field label="Κατηγορία" htmlFor="category_id" required>
-              <select
-                id="category_id"
-                name="category_id"
-                className="h-12 w-full rounded-2xl border border-[#e7ddd3] bg-[#fffdfa] px-4 text-sm text-gray-900 focus:border-[#c9b29d] focus:outline-none focus:ring-2 focus:ring-[#efe4d8]"
-                required
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Επιλέξτε κατηγορία
-                </option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name_el}
-                  </option>
-                ))}
-              </select>
-            </Field>
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('business_id', resolvedBusinessId)
+    .order('sort_order')
 
-            <Field label="Περιγραφή" htmlFor="description_el">
-              <Input
-                id="description_el"
-                name="description_el"
-                placeholder="π.χ. Διπλός παγωμένος espresso"
-                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
-              />
-            </Field>
+  if (error) return { data: null, error: error.message }
+  return { data: (data ?? []) as unknown as Category[], error: null }
+}
 
-            <Field label="Τιμή" htmlFor="price" required>
-              <Input
-                id="price"
-                name="price"
-                placeholder="π.χ. 3.50"
-                required
-                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
-              />
-            </Field>
+export async function getProductsForDashboard(
+  businessId?: string,
+  categoryId?: string,
+): Promise<ActionResult<Product[]>> {
+  const supabase = await createClient()
 
-            <Button type="submit" loading={isPending} className="rounded-2xl">
-              Δημιουργία προϊόντος
-            </Button>
-          </form>
-        </div>
+  let resolvedBusinessId = businessId
 
-        <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div className="mb-5">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-              Existing products
-            </p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-              Υπάρχοντα προϊόντα
-            </h3>
-          </div>
+  if (!resolvedBusinessId) {
+    const { businessId: currentBusinessId, error } = await resolveCurrentBusinessId()
+    if (error || !currentBusinessId) {
+      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    }
+    resolvedBusinessId = currentBusinessId
+  }
 
-          {products.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#d8cdc1] bg-[#fffdfa] px-4 py-8 text-center text-sm text-[#7b6657]">
-              Δεν υπάρχουν προϊόντα ακόμα.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {products.map((product) => (
-                <div
-                  key={product.id}
-                  className="flex items-center justify-between rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {product.name_el}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-[#7b6657]">
-                      {product.description_el ?? 'Χωρίς περιγραφή'}
-                    </p>
-                  </div>
-                  <p className="ml-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                    {formatCurrency(Number(product.price ?? 0), currency)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+  let query = supabase
+    .from('products')
+    .select(`
+      *,
+      category:categories (
+        id,
+        name_el,
+        name_en
+      )
+    `)
+    .eq('business_id', resolvedBusinessId)
+    .order('sort_order')
+
+  if (categoryId) {
+    query = query.eq('category_id', categoryId)
+  }
+
+  const { data, error } = await query
+
+  if (error) return { data: null, error: error.message }
+  return { data: (data ?? []) as unknown as Product[], error: null }
+}
+
+export async function createCategory(
+  input: InsertCategory,
+): Promise<ActionResult<Category>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('categories')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Category, error: null }
+}
+
+export async function updateCategory(
+  categoryId: string,
+  updates: UpdateCategory,
+): Promise<ActionResult<Category>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('categories')
+    .update(updates as never)
+    .eq('id', categoryId)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Category, error: null }
+}
+
+export async function deleteCategory(categoryId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', categoryId)
+
+  if (error) {
+    if (error.code === '23503') {
+      return {
+        data: null,
+        error:
+          'Δεν μπορείτε να διαγράψετε κατηγορία που έχει προϊόντα. Διαγράψτε ή μετακινήστε πρώτα τα προϊόντα.',
+      }
+    }
+
+    return { data: null, error: error.message }
+  }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
+}
+
+export async function createProduct(
+  input: InsertProduct,
+): Promise<ActionResult<Product>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('products')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Product, error: null }
+}
+
+export async function updateProduct(
+  productId: string,
+  updates: UpdateProduct,
+): Promise<ActionResult<Product>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('products')
+    .update(updates as never)
+    .eq('id', productId)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as Product, error: null }
+}
+
+export async function deleteProduct(productId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', productId)
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
+}
+
+export async function uploadProductImage(
+  businessId: string,
+  productId: string,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const supabase = await createClient()
+
+  const file = formData.get('image') as File | null
+
+  if (!file || file.size === 0) {
+    return { data: null, error: 'Δεν επιλέχθηκε αρχείο.' }
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return { data: null, error: 'Μέγιστο μέγεθος αρχείου: 5 MB.' }
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `${businessId}/${productId}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (uploadError) return { data: null, error: uploadError.message }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from('product-images').getPublicUrl(path)
+
+  const { error: updateError } = await supabase
+    .from('products')
+    .update({ image_url: publicUrl } as never)
+    .eq('id', productId)
+
+  if (updateError) return { data: null, error: updateError.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: publicUrl, error: null }
+}
+
+export async function createOptionGroup(
+  input: InsertProductOptionGroup,
+): Promise<ActionResult<ProductOptionGroup>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('product_option_groups')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as ProductOptionGroup, error: null }
+}
+
+export async function deleteOptionGroup(groupId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('product_option_groups')
+    .delete()
+    .eq('id', groupId)
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
+}
+
+export async function createOptionChoice(
+  input: InsertProductOptionChoice,
+): Promise<ActionResult<ProductOptionChoice>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('product_option_choices')
+    .insert(input as never)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: data as unknown as ProductOptionChoice, error: null }
+}
+
+export async function deleteOptionChoice(choiceId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('product_option_choices')
+    .delete()
+    .eq('id', choiceId)
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  return { data: null, error: null }
 }
