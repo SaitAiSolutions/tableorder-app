@@ -12,15 +12,27 @@ interface OrderCardProps {
   onCancel?: (orderId: string) => void
 }
 
+type OrderWithOptionalTable = OrderWithItems & {
+  table?: {
+    id?: string
+    table_number?: string
+    name?: string | null
+  } | null
+}
+
 export function OrderCard({ order, onAdvance, onCancel }: OrderCardProps) {
   const meta = getStatusMeta(order.status)
+  const safeOrder = order as OrderWithOptionalTable
+  const tableLabel = safeOrder.table?.table_number
+    ? `Τραπέζι ${safeOrder.table.table_number}`
+    : 'Τραπέζι'
 
   return (
     <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-            Τραπέζι {order.table_id ?? '-'}
+            {tableLabel}
           </h3>
           <p className="mt-1 text-sm text-[#7b6657]">
             {new Date(order.created_at).toLocaleString('el-GR')}
@@ -73,7 +85,9 @@ export function OrderCard({ order, onAdvance, onCancel }: OrderCardProps) {
         </p>
 
         <div className="flex flex-wrap gap-2">
-          {order.status !== 'completed' && order.status !== 'cancelled' && meta.action_el ? (
+          {order.status !== 'completed' &&
+          order.status !== 'cancelled' &&
+          meta.action_el ? (
             <Button
               type="button"
               size="sm"
