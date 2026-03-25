@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import type { TableWithActiveSession } from '@/types/database.types'
 import { createTable } from '@/lib/actions/tables.actions'
 import { generateTableUrl } from '@/lib/utils/generate-table-url'
@@ -18,6 +19,7 @@ export function TableManager({ tables, businessSlug }: TableManagerProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [copiedTableId, setCopiedTableId] = useState<string | null>(null)
+  const [openQrTableId, setOpenQrTableId] = useState<string | null>(null)
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -43,6 +45,67 @@ export function TableManager({ tables, businessSlug }: TableManagerProps) {
     } catch {
       setError('Αποτυχία αντιγραφής συνδέσμου.')
     }
+  }
+
+  function handlePrintQr(tableId: string) {
+    const wrapper = document.getElementById(`qr-print-${tableId}`)
+    if (!wrapper) return
+
+    const printWindow = window.open('', '_blank', 'width=600,height=800')
+    if (!printWindow) {
+      setError('Δεν ήταν δυνατό να ανοίξει νέο παράθυρο για εκτύπωση.')
+      return
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>QR Table</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: #ffffff;
+            }
+            .wrap {
+              text-align: center;
+              padding: 24px;
+            }
+            .title {
+              font-size: 28px;
+              font-weight: bold;
+              margin-bottom: 12px;
+            }
+            .subtitle {
+              font-size: 16px;
+              color: #555;
+              margin-bottom: 20px;
+            }
+            .qr {
+              display: inline-block;
+              padding: 20px;
+              border: 1px solid #ddd;
+              border-radius: 16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            ${wrapper.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   return (
@@ -107,6 +170,7 @@ export function TableManager({ tables, businessSlug }: TableManagerProps) {
           <div className="space-y-4">
             {tables.map((table) => {
               const customerUrl = generateTableUrl(businessSlug, table.id)
+              const isQrOpen = openQrTableId === table.id
 
               return (
                 <div
@@ -159,8 +223,62 @@ export function TableManager({ tables, businessSlug }: TableManagerProps) {
                       >
                         Άνοιγμα
                       </a>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="rounded-2xl"
+                        onClick={() =>
+                          setOpenQrTableId(isQrOpen ? null : table.id)
+                        }
+                      >
+                        {isQrOpen ? 'Κλείσιμο QR' : 'Generate QR'}
+                      </Button>
                     </div>
                   </div>
+
+                  {isQrOpen ? (
+                    <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white p-4">
+                      <div
+                        id={`qr-print-${table.id}`}
+                        className="flex flex-col items-center text-center"
+                      >
+                        <div className="title text-xl font-semibold text-gray-900">
+                          Τραπέζι {table.table_number}
+                        </div>
+                        <div className="subtitle mt-1 text-sm text-[#7b6657]">
+                          {table.name ?? 'QR Ordering'}
+                        </div>
+
+                        <div className="qr mt-4 rounded-2xl border border-[#eee5dc] bg-white p-4">
+                          <QRCodeSVG value={customerUrl} size={220} includeMargin />
+                        </div>
+
+                        <p className="mt-4 max-w-xs break-all text-xs text-[#7b6657]">
+                          {customerUrl}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        <Button
+                          type="button"
+                          className="rounded-2xl"
+                          onClick={() => handlePrintQr(table.id)}
+                        >
+                          Print / Save PDF
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="rounded-2xl"
+                          onClick={() => handleCopy(customerUrl, table.id)}
+                        >
+                          Copy link
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )
             })}
