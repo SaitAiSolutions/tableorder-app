@@ -23,16 +23,19 @@ type OrderWithOptionalTable = OrderWithItems & {
 export function OrderCard({ order, onAdvance, onCancel }: OrderCardProps) {
   const meta = getStatusMeta(order.status)
   const safeOrder = order as OrderWithOptionalTable
-  const tableLabel = safeOrder.table?.table_number
-    ? `Τραπέζι ${safeOrder.table.table_number}`
-    : 'Τραπέζι'
+
+  const tableNumber = safeOrder.table?.table_number
+  const tableName = safeOrder.table?.name?.trim()
+
+  const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
+  const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
 
   return (
     <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-            {tableLabel}
+            {tableSubtitle}
           </h3>
           <p className="mt-1 text-sm text-[#7b6657]">
             {new Date(order.created_at).toLocaleString('el-GR')}

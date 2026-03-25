@@ -31,10 +31,47 @@ function ordersReducer(state: OrderWithItems[], action: OrdersAction): OrderWith
 
 export function useRealtimeOrders(initialOrders: OrderWithItems[]) {
   const [orders, dispatch] = useReducer(ordersReducer, initialOrders)
+  const router = useRouter()
+
+  const refresh = useCallback(() => {
+    router.refresh()
+  }, [router])
 
   useEffect(() => {
     dispatch({ type: 'reset', payload: initialOrders })
   }, [initialOrders])
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    const channel = supabase
+      .channel('orders-live-feed')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => refresh(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items' },
+        () => refresh(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_item_options' },
+        () => refresh(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tables' },
+        () => refresh(),
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [refresh])
 
   return { orders, dispatch }
 }
@@ -59,6 +96,11 @@ export function useRealtimeTables(_initialTables: TableWithActiveSession[]) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'table_sessions' },
+        () => refresh(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tables' },
         () => refresh(),
       )
       .subscribe()

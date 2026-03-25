@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { LiveOrderFeed } from './live-order-feed'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
 import type { OrderWithItems } from '@/types/database.types'
@@ -12,6 +12,10 @@ interface OrdersClientProps {
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
   const [orders, setOrders] = useState(initialOrders)
   const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    setOrders(initialOrders)
+  }, [initialOrders])
 
   function patchOrder(orderId: string, nextStatus: OrderWithItems['status']) {
     setOrders((prev) =>

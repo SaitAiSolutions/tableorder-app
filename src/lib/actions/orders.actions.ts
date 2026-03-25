@@ -1,4 +1,3 @@
-// Path: src/lib/actions/orders.actions.ts
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -44,14 +43,16 @@ export async function placeOrder(
 ): Promise<ActionResult<PlaceOrderResult>> {
   const supabase = await createClient()
 
-  await supabase.rpc('set_current_business', { p_id: params.p_business_id })
+  await supabase.rpc('set_current_business' as never, {
+    p_id: params.p_business_id,
+  } as never)
 
-  const { data, error } = await supabase.rpc('place_order', {
+  const { data, error } = await supabase.rpc('place_order' as never, {
     p_business_id: params.p_business_id,
     p_table_id: params.p_table_id,
     p_notes: params.p_notes ?? null,
     p_items: params.p_items as unknown as never,
-  })
+  } as never)
 
   if (error) {
     if (error.message.includes('table_not_found')) {
