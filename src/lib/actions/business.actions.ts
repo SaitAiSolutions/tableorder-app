@@ -1,4 +1,3 @@
-// Path: src/lib/actions/business.actions.ts
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -78,7 +77,7 @@ export async function createBusiness(
       slug,
       currency,
       default_language: 'el',
-    })
+    } as never)
     .select('id, slug')
     .single()
 
@@ -91,7 +90,7 @@ export async function createBusiness(
       business_id: business.id,
       user_id: user.id,
       role: 'owner',
-    })
+    } as never)
 
   if (memberError) {
     await admin.from('businesses').delete().eq('id', business.id)
@@ -127,7 +126,7 @@ export async function uploadLogo(
   businessId: string,
   formData: FormData,
 ): Promise<ActionResult<string>> {
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
   const file = formData.get('logo') as File | null
 
@@ -139,31 +138,54 @@ export async function uploadLogo(
     return { data: null, error: 'Το αρχείο δεν μπορεί να υπερβαίνει τα 5 MB.' }
   }
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-  const path = `${businessId}/logo.${ext}`
+  const allowedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/svg+xml',
+  ]
 
-  const { error: uploadError } = await supabase.storage
-    .from('business-assets')
-    .upload(path, file, { upsert: true, contentType: file.type })
-
-  if (uploadError) return { data: null, error: uploadError.message }
-
-  const { data: signed, error: urlError } = await supabase.storage
-    .from('business-assets')
-    .createSignedUrl(path, 60 * 60 * 24 * 365)
-
-  if (urlError || !signed?.signedUrl) {
-    return { data: null, error: 'Αποτυχία δημιουργίας URL.' }
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      data: null,
+      error: 'Επιτρέπονται μόνο JPG, PNG, WEBP ή SVG αρχεία.',
+    }
   }
 
-  const { error: updateError } = await supabase
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
+  const path = `${businessId}/logo-${Date.now()}.${ext}`
+
+  const { error: uploadError } = await admin.storage
+    .from('business-assets')
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+    })
+
+  if (uploadError) {
+    return { data: null, error: uploadError.message }
+  }
+
+  const {
+    data: { publicUrl },
+  } = admin.storage.from('business-assets').getPublicUrl(path)
+
+  if (!publicUrl) {
+    return { data: null, error: 'Αποτυχία δημιουργίας URL λογότυπου.' }
+  }
+
+  const { error: updateError } = await admin
     .from('businesses')
-    .update({ logo_url: signed.signedUrl } as never)
+    .update({ logo_url: publicUrl } as never)
     .eq('id', businessId)
 
-  if (updateError) return { data: null, error: updateError.message }
+  if (updateError) {
+    return { data: null, error: updateError.message }
+  }
 
   revalidatePath('/dashboard', 'layout')
   revalidatePath('/dashboard/settings')
-  return { data: signed.signedUrl, error: null }
+  revalidatePath('/onboarding/branding')
+
+  return { data: publicUrl, error: null }
 }
