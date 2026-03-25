@@ -5,10 +5,12 @@ import { useState, useTransition } from 'react'
 import {
   createCategory,
   createProduct,
+  deleteCategory,
   deleteProduct,
   moveCategoryDown,
   moveCategoryUp,
   updateCategory,
+  updateProduct,
   uploadProductImage,
 } from '@/lib/actions/menu.actions'
 import { Button } from '@/components/ui/button'
@@ -35,10 +37,18 @@ export function MenuManager({
   const [productError, setProductError] = useState<string | null>(null)
   const [categorySuccess, setCategorySuccess] = useState<string | null>(null)
   const [productSuccess, setProductSuccess] = useState<string | null>(null)
+
   const [selectedProductFileName, setSelectedProductFileName] = useState('')
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
+
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
+  const [editingProductName, setEditingProductName] = useState('')
+  const [editingProductDescription, setEditingProductDescription] = useState('')
+  const [editingProductPrice, setEditingProductPrice] = useState('')
+  const [editingProductCategoryId, setEditingProductCategoryId] = useState('')
+  const [editingProductFileName, setEditingProductFileName] = useState('')
 
   function handleCreateCategory(formData: FormData) {
     startTransition(async () => {
@@ -220,6 +230,116 @@ export function MenuManager({
     })
   }
 
+  function handleDeleteCategory(categoryId: string) {
+    const confirmed = window.confirm(
+      'Θέλετε σίγουρα να διαγράψετε αυτή την κατηγορία;',
+    )
+
+    if (!confirmed) return
+
+    startTransition(async () => {
+      setCategoryError(null)
+      setCategorySuccess(null)
+
+      const result = await deleteCategory(categoryId)
+
+      if (result.error) {
+        setCategoryError(result.error)
+        return
+      }
+
+      setCategorySuccess('Η κατηγορία διαγράφηκε.')
+    })
+  }
+
+  function startEditProduct(product: Product) {
+    setEditingProductId(product.id)
+    setEditingProductName(product.name_el)
+    setEditingProductDescription(product.description_el ?? '')
+    setEditingProductPrice(String(product.price ?? ''))
+    setEditingProductCategoryId(product.category_id)
+    setEditingProductFileName('')
+    setProductError(null)
+    setProductSuccess(null)
+  }
+
+  function cancelEditProduct() {
+    setEditingProductId(null)
+    setEditingProductName('')
+    setEditingProductDescription('')
+    setEditingProductPrice('')
+    setEditingProductCategoryId('')
+    setEditingProductFileName('')
+  }
+
+  function handleSaveProduct(productId: string, originalImageUrl: string | null) {
+    startTransition(async () => {
+      setProductError(null)
+      setProductSuccess(null)
+
+      const trimmedName = editingProductName.trim()
+      const trimmedCategoryId = editingProductCategoryId.trim()
+      const normalizedPrice = Number(editingProductPrice.replace(',', '.'))
+
+      if (!trimmedName || !trimmedCategoryId || !editingProductPrice.trim()) {
+        setProductError('Συμπληρώστε όνομα, κατηγορία και τιμή.')
+        return
+      }
+
+      if (Number.isNaN(normalizedPrice) || normalizedPrice < 0) {
+        setProductError('Η τιμή δεν είναι έγκυρη.')
+        return
+      }
+
+      const updateResult = await updateProduct(productId, {
+        name_el: trimmedName,
+        category_id: trimmedCategoryId,
+        description_el: editingProductDescription.trim() || null,
+        price: normalizedPrice,
+      })
+
+      if (updateResult.error) {
+        setProductError(updateResult.error)
+        return
+      }
+
+      const fileInput = document.getElementById(
+        `edit-image-${productId}`,
+      ) as HTMLInputElement | null
+      const file = fileInput?.files?.[0] ?? null
+
+      if (file) {
+        const editFormData = new FormData()
+        editFormData.append('image', file)
+
+        const uploadResult = await uploadProductImage(
+          businessId,
+          productId,
+          editFormData,
+        )
+
+        if (uploadResult.error) {
+          setProductError(
+            `Το προϊόν ενημερώθηκε, αλλά η νέα εικόνα δεν ανέβηκε: ${uploadResult.error}`,
+          )
+          return
+        }
+      }
+
+      setEditingProductId(null)
+      setEditingProductName('')
+      setEditingProductDescription('')
+      setEditingProductPrice('')
+      setEditingProductCategoryId('')
+      setEditingProductFileName('')
+      setProductSuccess(
+        file || originalImageUrl
+          ? 'Το προϊόν ενημερώθηκε.'
+          : 'Το προϊόν ενημερώθηκε.',
+      )
+    })
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <div className="space-y-6">
@@ -363,6 +483,16 @@ export function MenuManager({
                           onClick={() => handleMoveDown(category.id)}
                         >
                           ↓ Κάτω
+                        </Button>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => handleDeleteCategory(category.id)}
+                        >
+                          Διαγραφή
                         </Button>
                       </>
                     )}
@@ -524,50 +654,178 @@ export function MenuManager({
                     key={product.id}
                     className="rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
                   >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e7ddd3] bg-white">
-                          {imageUrl ? (
-                            <Image
-                              src={imageUrl}
-                              alt={product.name_el}
-                              width={56}
-                              height={56}
-                              className="h-full w-full object-cover"
-                              unoptimized
-                            />
-                          ) : (
-                            <span className="text-[11px] text-[#8b715d]">No image</span>
-                          )}
-                        </div>
+                    {editingProductId === product.id ? (
+                      <div className="space-y-4">
+                        <Field label="Όνομα προϊόντος" htmlFor={`edit-name-${product.id}`} required>
+                          <Input
+                            id={`edit-name-${product.id}`}
+                            value={editingProductName}
+                            onChange={(e) => setEditingProductName(e.target.value)}
+                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                          />
+                        </Field>
 
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {product.name_el}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-[#7b6657]">
-                            {product.description_el ?? 'Χωρίς περιγραφή'}
-                          </p>
+                        <Field label="Κατηγορία" htmlFor={`edit-category-${product.id}`} required>
+                          <select
+                            id={`edit-category-${product.id}`}
+                            value={editingProductCategoryId}
+                            onChange={(e) => setEditingProductCategoryId(e.target.value)}
+                            className="h-12 w-full rounded-2xl border border-[#e7ddd3] bg-white px-4 text-sm text-gray-900 focus:border-[#c9b29d] focus:outline-none focus:ring-2 focus:ring-[#efe4d8]"
+                          >
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name_el}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+
+                        <Field label="Περιγραφή" htmlFor={`edit-description-${product.id}`}>
+                          <Input
+                            id={`edit-description-${product.id}`}
+                            value={editingProductDescription}
+                            onChange={(e) => setEditingProductDescription(e.target.value)}
+                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                          />
+                        </Field>
+
+                        <Field label="Τιμή" htmlFor={`edit-price-${product.id}`} required>
+                          <Input
+                            id={`edit-price-${product.id}`}
+                            value={editingProductPrice}
+                            onChange={(e) => setEditingProductPrice(e.target.value)}
+                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                          />
+                        </Field>
+
+                        <Field label="Αλλαγή εικόνας" htmlFor={`edit-image-${product.id}`}>
+                          <div className="rounded-2xl border border-[#e7ddd3] bg-white p-4">
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e7ddd3] bg-[#faf7f2]">
+                                {imageUrl ? (
+                                  <Image
+                                    src={imageUrl}
+                                    alt={product.name_el}
+                                    width={64}
+                                    height={64}
+                                    className="h-full w-full object-cover"
+                                    unoptimized
+                                  />
+                                ) : (
+                                  <span className="text-[11px] text-[#8b715d]">No image</span>
+                                )}
+                              </div>
+
+                              <div className="flex min-w-0 flex-col gap-2">
+                                <label
+                                  htmlFor={`edit-image-${product.id}`}
+                                  className="inline-flex w-fit cursor-pointer rounded-xl border border-[#d9cec3] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] transition hover:bg-[#f6efe8]"
+                                >
+                                  Επιλογή νέας εικόνας
+                                </label>
+
+                                <input
+                                  id={`edit-image-${product.id}`}
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                                  className="hidden"
+                                  onChange={(e) =>
+                                    setEditingProductFileName(e.target.files?.[0]?.name ?? '')
+                                  }
+                                />
+
+                                <p className="text-xs text-[#7b6657]">
+                                  JPG, PNG, WEBP ή SVG έως 5 MB
+                                </p>
+
+                                {editingProductFileName ? (
+                                  <p className="truncate text-sm text-gray-700">
+                                    Επιλεγμένο: {editingProductFileName}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </Field>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            className="rounded-xl"
+                            loading={isPending}
+                            onClick={() => handleSaveProduct(product.id, imageUrl)}
+                          >
+                            Αποθήκευση
+                          </Button>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="rounded-xl"
+                            onClick={cancelEditProduct}
+                          >
+                            Άκυρο
+                          </Button>
                         </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e7ddd3] bg-white">
+                              {imageUrl ? (
+                                <Image
+                                  src={imageUrl}
+                                  alt={product.name_el}
+                                  width={56}
+                                  height={56}
+                                  className="h-full w-full object-cover"
+                                  unoptimized
+                                />
+                              ) : (
+                                <span className="text-[11px] text-[#8b715d]">No image</span>
+                              )}
+                            </div>
 
-                      <p className="whitespace-nowrap text-sm font-semibold text-gray-900">
-                        {formatCurrency(Number(product.price ?? 0), currency)}
-                      </p>
-                    </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {product.name_el}
+                              </p>
+                              <p className="mt-1 truncate text-xs text-[#7b6657]">
+                                {product.description_el ?? 'Χωρίς περιγραφή'}
+                              </p>
+                            </div>
+                          </div>
 
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
-                        loading={deletingProductId === product.id && isPending}
-                        onClick={() => handleDeleteProduct(product.id)}
-                      >
-                        Διαγραφή
-                      </Button>
-                    </div>
+                          <p className="whitespace-nowrap text-sm font-semibold text-gray-900">
+                            {formatCurrency(Number(product.price ?? 0), currency)}
+                          </p>
+                        </div>
+
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-xl"
+                            onClick={() => startEditProduct(product)}
+                          >
+                            Edit
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                            loading={deletingProductId === product.id && isPending}
+                            onClick={() => handleDeleteProduct(product.id)}
+                          >
+                            Διαγραφή
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )
               })}
