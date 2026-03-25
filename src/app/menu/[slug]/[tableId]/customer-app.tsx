@@ -7,7 +7,9 @@ import { CartBar } from '@/components/customer/cart-bar'
 import { CartSheet } from '@/components/customer/cart-sheet'
 import { OrderConfirmation } from '@/components/customer/order-confirmation'
 import { ErrorMessage } from '@/components/ui/error-message'
+import { Button } from '@/components/ui/button'
 import { placeOrder } from '@/lib/actions/orders.actions'
+import { formatCurrency } from '@/lib/utils/format-currency'
 import type {
   CartItem,
   CategoryWithProducts,
@@ -16,6 +18,31 @@ import type {
 
 interface CustomerAppProps {
   data: CustomerMenuData
+}
+
+type ProductOptionChoiceLite = {
+  id: string
+  name_el: string
+  price_delta: number | string | null
+}
+
+type ProductOptionGroupLite = {
+  id: string
+  name_el: string
+  is_required: boolean | null
+  product_option_choices?: ProductOptionChoiceLite[]
+}
+
+type ProductWithOptions = CategoryWithProducts['products'][number] & {
+  product_option_groups?: ProductOptionGroupLite[]
+}
+
+type SelectedCartOption = {
+  choice_id: string
+  group_id: string
+  group_name: string
+  choice_name: string
+  price_delta: number
 }
 
 export function CustomerApp({ data }: CustomerAppProps) {
@@ -27,6 +54,10 @@ export function CustomerApp({ data }: CustomerAppProps) {
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const [optionProduct, setOptionProduct] = useState<ProductWithOptions | null>(null)
+  const [selectedChoices, setSelectedChoices] = useState<Record<string, string>>({})
+  const [optionError, setOptionError] = useState<string | null>(null)
 
   const activeCategory = useMemo(
     () =>
@@ -41,9 +72,16 @@ export function CustomerApp({ data }: CustomerAppProps) {
     return `${productId}::${sorted.join(',')}`
   }
 
-  function addToCart(product: CategoryWithProducts['products'][number]) {
+  function addConfiguredProduct(
+    product: ProductWithOptions,
+    options: SelectedCartOption[],
+  ) {
     setCart((prev) => {
-      const key = buildCartKey(product.id, [])
+      const choiceIds = options.map((opt) => opt.choice_id)
+      const key = buildCartKey(product.id, choiceIds)
+      const basePrice = Number(product.price ?? 0)
+      const optionsTotal = options.reduce((sum, opt) => sum + Number(opt.price_delta ?? 0), 0)
+      const unitPrice = basePrice + optionsTotal
 
       const existing = prev.find((item) => item.key === key)
 
@@ -63,14 +101,82 @@ export function CustomerApp({ data }: CustomerAppProps) {
         key,
         product_id: product.id,
         name: product.name_el,
-        base_price: Number(product.price ?? 0),
+        base_price: unitPrice,
         quantity: 1,
-        options: [],
-        line_total: Number(product.price ?? 0),
+        options: options.map((opt) => ({
+          choice_id: opt.choice_id,
+          group_id: opt.group_id,
+          group_name: opt.group_name,
+          choice_name: opt.choice_name,
+          price_delta: opt.price_delta,
+        })),
+        line_total: unitPrice,
       }
 
       return [...prev, nextItem]
     })
+  }
+
+  function addToCart(product: CategoryWithProducts['products'][number]) {
+    const safeProduct = product as ProductWithOptions
+    const groups = safeProduct.product_option_groups ?? []
+
+    if (groups.length === 0) {
+      addConfiguredProduct(safeProduct, [])
+      return
+    }
+
+    setOptionProduct(safeProduct)
+    setSelectedChoices({})
+    setOptionError(null)
+  }
+
+  function closeOptionsModal() {
+    setOptionProduct(null)
+    setSelectedChoices({})
+    setOptionError(null)
+  }
+
+  function handleSelectChoice(groupId: string, choiceId: string) {
+    setSelectedChoices((prev) => ({
+      ...prev,
+      [groupId]: choiceId,
+    }))
+    setOptionError(null)
+  }
+
+  function handleConfirmOptions() {
+    if (!optionProduct) return
+
+    const groups = optionProduct.product_option_groups ?? []
+
+    for (const group of groups) {
+      if (group.is_required && !selectedChoices[group.id]) {
+        setOptionError(`Παρακαλώ επιλέξτε: ${group.name_el}`)
+        return
+      }
+    }
+
+    const selectedOptions: SelectedCartOption[] = []
+
+    for (const group of groups) {
+      const selectedChoiceId = selectedChoices[group.id]
+      if (!selectedChoiceId) continue
+
+      const choice = group.product_option_choices?.find((c) => c.id === selectedChoiceId)
+      if (!choice) continue
+
+      selectedOptions.push({
+        choice_id: choice.id,
+        group_id: group.id,
+        group_name: group.name_el,
+        choice_name: choice.name_el,
+        price_delta: Number(choice.price_delta ?? 0),
+      })
+    }
+
+    addConfiguredProduct(optionProduct, selectedOptions)
+    closeOptionsModal()
   }
 
   function increaseItem(key: string) {
@@ -134,6 +240,19 @@ export function CustomerApp({ data }: CustomerAppProps) {
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const totalAmount = cart.reduce((sum, item) => sum + item.line_total, 0)
+
+  const optionGroups = optionProduct?.product_option_groups ?? []
+  const optionBasePrice = Number(optionProduct?.price ?? 0)
+
+  const optionSelectedTotal = optionGroups.reduce((sum, group) => {
+    const selectedChoiceId = selectedChoices[group.id]
+    if (!selectedChoiceId) return sum
+
+    const choice = group.product_option_choices?.find((c) => c.id === selectedChoiceId)
+    return sum + Number(choice?.price_delta ?? 0)
+  }, 0)
+
+  const optionFinalPrice = optionBasePrice + optionSelectedTotal
 
   return (
     <div className="min-h-screen bg-[#f6f3ee] pb-28">
@@ -210,6 +329,110 @@ export function CustomerApp({ data }: CustomerAppProps) {
         open={confirmationOpen}
         onClose={() => setConfirmationOpen(false)}
       />
+
+      {optionProduct ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-black/5 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+            <div className="border-b border-[#eee5dc] px-5 py-4 sm:px-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {optionProduct.name_el}
+                  </h3>
+                  <p className="mt-1 text-sm text-[#7b6657]">
+                    Επιλέξτε τις παραμέτρους του προϊόντος πριν το προσθέσετε.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeOptionsModal}
+                  className="rounded-full p-2 text-gray-500 transition hover:bg-[#f6efe8] hover:text-gray-900"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4 px-5 py-5 sm:px-6">
+              {optionError ? <ErrorMessage message={optionError} /> : null}
+
+              {optionGroups.map((group) => (
+                <div
+                  key={group.id}
+                  className="rounded-2xl border border-[#ebe5dd] bg-[#faf7f2] p-4"
+                >
+                  <div className="mb-3">
+                    <h4 className="text-sm font-semibold text-gray-900">
+                      {group.name_el}
+                    </h4>
+                    <p className="mt-1 text-xs text-[#7b6657]">
+                      {group.is_required ? 'Υποχρεωτική επιλογή' : 'Προαιρετική επιλογή'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {group.product_option_choices?.map((choice) => {
+                      const isSelected = selectedChoices[group.id] === choice.id
+                      const extra = Number(choice.price_delta ?? 0)
+
+                      return (
+                        <button
+                          key={choice.id}
+                          type="button"
+                          onClick={() => handleSelectChoice(group.id, choice.id)}
+                          className={
+                            isSelected
+                              ? 'rounded-full border border-[#1f2937] bg-[#1f2937] px-4 py-2 text-sm font-medium text-white'
+                              : 'rounded-full border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] transition hover:bg-[#f6efe8]'
+                          }
+                        >
+                          {choice.name_el}
+                          {extra > 0
+                            ? ` (+${formatCurrency(extra, data.business.currency)})`
+                            : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-[#eee5dc] px-5 py-4 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.12em] text-[#8a6d58]">
+                    Τελική τιμή
+                  </p>
+                  <p className="mt-1 text-xl font-semibold text-gray-900">
+                    {formatCurrency(optionFinalPrice, data.business.currency)}
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-xl"
+                    onClick={closeOptionsModal}
+                  >
+                    Άκυρο
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="rounded-xl bg-[#1f2937] text-white hover:bg-[#111827]"
+                    onClick={handleConfirmOptions}
+                  >
+                    Προσθήκη στο καλάθι
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
