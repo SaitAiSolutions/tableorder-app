@@ -4,8 +4,12 @@ import Image from 'next/image'
 import { useState, useTransition } from 'react'
 import {
   createCategory,
+  createOptionChoice,
+  createOptionGroup,
   createProduct,
   deleteCategory,
+  deleteOptionChoice,
+  deleteOptionGroup,
   deleteProduct,
   moveCategoryDown,
   moveCategoryUp,
@@ -17,13 +21,17 @@ import { Button } from '@/components/ui/button'
 import { Input, Field } from '@/components/ui/input'
 import { ErrorMessage } from '@/components/ui/error-message'
 import { formatCurrency } from '@/lib/utils/format-currency'
-import type { Category, Product } from '@/types/database.types'
+import type {
+  Category,
+  ProductWithOptions,
+  ProductOptionGroup,
+} from '@/types/database.types'
 
 interface MenuManagerProps {
   businessId: string
   currency: string
   categories: Category[]
-  products: Product[]
+  products: ProductWithOptions[]
 }
 
 export function MenuManager({
@@ -50,6 +58,21 @@ export function MenuManager({
   const [editingProductPrice, setEditingProductPrice] = useState('')
   const [editingProductCategoryId, setEditingProductCategoryId] = useState('')
   const [editingProductFileName, setEditingProductFileName] = useState('')
+
+  const [openGroupProductId, setOpenGroupProductId] = useState<string | null>(null)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupRequired, setNewGroupRequired] = useState(false)
+
+  const [openChoiceGroupId, setOpenChoiceGroupId] = useState<string | null>(null)
+  const [newChoiceName, setNewChoiceName] = useState('')
+  const [newChoicePriceDelta, setNewChoicePriceDelta] = useState('0')
+
+  function resetMessages() {
+    setCategoryError(null)
+    setCategorySuccess(null)
+    setProductError(null)
+    setProductSuccess(null)
+  }
 
   function handleCreateCategory(formData: FormData) {
     startTransition(async () => {
@@ -253,7 +276,7 @@ export function MenuManager({
     })
   }
 
-  function startEditProduct(product: Product) {
+  function startEditProduct(product: ProductWithOptions) {
     setEditingProductId(product.id)
     setEditingProductName(product.name_el)
     setEditingProductDescription(product.description_el ?? '')
@@ -329,6 +352,120 @@ export function MenuManager({
 
       cancelEditProduct()
       setProductSuccess('Το προϊόν ενημερώθηκε.')
+    })
+  }
+
+  function handleCreateOptionGroup(product: ProductWithOptions) {
+    startTransition(async () => {
+      resetMessages()
+
+      const trimmedName = newGroupName.trim()
+
+      if (!trimmedName) {
+        setProductError('Γράψτε όνομα ομάδας επιλογών.')
+        return
+      }
+
+      const result = await createOptionGroup({
+        business_id: businessId,
+        product_id: product.id,
+        name_el: trimmedName,
+        name_en: null,
+        is_required: newGroupRequired,
+        sort_order: (product.product_option_groups?.length ?? 0) + 1,
+      })
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setNewGroupName('')
+      setNewGroupRequired(false)
+      setOpenGroupProductId(null)
+      setProductSuccess('Η ομάδα επιλογών δημιουργήθηκε.')
+    })
+  }
+
+  function handleCreateOptionChoice(
+    group: ProductOptionGroup & { product_option_choices?: { sort_order: number }[] },
+  ) {
+    startTransition(async () => {
+      resetMessages()
+
+      const trimmedName = newChoiceName.trim()
+      const priceDelta = Number(newChoicePriceDelta.replace(',', '.'))
+
+      if (!trimmedName) {
+        setProductError('Γράψτε όνομα επιλογής.')
+        return
+      }
+
+      if (Number.isNaN(priceDelta)) {
+        setProductError('Το extra κόστος δεν είναι έγκυρο.')
+        return
+      }
+
+      const result = await createOptionChoice({
+        business_id: businessId,
+        group_id: group.id,
+        name_el: trimmedName,
+        name_en: null,
+        price_delta: priceDelta,
+        sort_order: (group.product_option_choices?.length ?? 0) + 1,
+      })
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setNewChoiceName('')
+      setNewChoicePriceDelta('0')
+      setOpenChoiceGroupId(null)
+      setProductSuccess('Η επιλογή δημιουργήθηκε.')
+    })
+  }
+
+  function handleDeleteOptionGroup(groupId: string) {
+    const confirmed = window.confirm(
+      'Θέλετε σίγουρα να διαγράψετε αυτή την ομάδα επιλογών;',
+    )
+
+    if (!confirmed) return
+
+    startTransition(async () => {
+      resetMessages()
+
+      const result = await deleteOptionGroup(groupId)
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setProductSuccess('Η ομάδα επιλογών διαγράφηκε.')
+    })
+  }
+
+  function handleDeleteOptionChoice(choiceId: string) {
+    const confirmed = window.confirm(
+      'Θέλετε σίγουρα να διαγράψετε αυτή την επιλογή;',
+    )
+
+    if (!confirmed) return
+
+    startTransition(async () => {
+      resetMessages()
+
+      const result = await deleteOptionChoice(choiceId)
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setProductSuccess('Η επιλογή διαγράφηκε.')
     })
   }
 
@@ -792,6 +929,241 @@ export function MenuManager({
                           <p className="whitespace-nowrap text-sm font-semibold text-gray-900">
                             {formatCurrency(Number(product.price ?? 0), currency)}
                           </p>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white p-4">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">
+                                Επιλογές προϊόντος
+                              </p>
+                              <p className="mt-1 text-xs text-[#7b6657]">
+                                Π.χ. Ζάχαρη, Μέγεθος, Γάλα
+                              </p>
+                            </div>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="rounded-xl"
+                              onClick={() => {
+                                setOpenGroupProductId(
+                                  openGroupProductId === product.id ? null : product.id,
+                                )
+                                setNewGroupName('')
+                                setNewGroupRequired(false)
+                              }}
+                            >
+                              + Ομάδα επιλογών
+                            </Button>
+                          </div>
+
+                          {openGroupProductId === product.id ? (
+                            <div className="mb-4 rounded-2xl border border-[#eee5dc] bg-[#faf7f2] p-4">
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <Field label="Όνομα ομάδας" htmlFor={`group-name-${product.id}`} required>
+                                  <Input
+                                    id={`group-name-${product.id}`}
+                                    value={newGroupName}
+                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                    placeholder="π.χ. Ζάχαρη"
+                                    className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                                  />
+                                </Field>
+
+                                <div className="flex items-end">
+                                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                                    <input
+                                      type="checkbox"
+                                      checked={newGroupRequired}
+                                      onChange={(e) => setNewGroupRequired(e.target.checked)}
+                                    />
+                                    Υποχρεωτική επιλογή
+                                  </label>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="rounded-xl"
+                                  loading={isPending}
+                                  onClick={() => handleCreateOptionGroup(product)}
+                                >
+                                  Αποθήκευση ομάδας
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="rounded-xl"
+                                  onClick={() => {
+                                    setOpenGroupProductId(null)
+                                    setNewGroupName('')
+                                    setNewGroupRequired(false)
+                                  }}
+                                >
+                                  Άκυρο
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {!product.product_option_groups ||
+                          product.product_option_groups.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-[#d8cdc1] bg-[#fffdfa] px-4 py-4 text-sm text-[#7b6657]">
+                              Δεν υπάρχουν επιλογές ακόμα.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {product.product_option_groups.map((group) => (
+                                <div
+                                  key={group.id}
+                                  className="rounded-2xl border border-[#eee5dc] bg-[#faf7f2] p-4"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-gray-900">
+                                        {group.name_el}
+                                      </p>
+                                      <p className="mt-1 text-xs text-[#7b6657]">
+                                        {group.is_required
+                                          ? 'Υποχρεωτική ομάδα'
+                                          : 'Προαιρετική ομάδα'}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="rounded-xl"
+                                        onClick={() => {
+                                          setOpenChoiceGroupId(
+                                            openChoiceGroupId === group.id ? null : group.id,
+                                          )
+                                          setNewChoiceName('')
+                                          setNewChoicePriceDelta('0')
+                                        }}
+                                      >
+                                        + Επιλογή
+                                      </Button>
+
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        onClick={() => handleDeleteOptionGroup(group.id)}
+                                      >
+                                        Διαγραφή ομάδας
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {openChoiceGroupId === group.id ? (
+                                    <div className="mt-3 rounded-2xl border border-[#e8ddd2] bg-white p-4">
+                                      <div className="grid gap-3 md:grid-cols-2">
+                                        <Field
+                                          label="Όνομα επιλογής"
+                                          htmlFor={`choice-name-${group.id}`}
+                                          required
+                                        >
+                                          <Input
+                                            id={`choice-name-${group.id}`}
+                                            value={newChoiceName}
+                                            onChange={(e) => setNewChoiceName(e.target.value)}
+                                            placeholder="π.χ. Μέτριος"
+                                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                                          />
+                                        </Field>
+
+                                        <Field
+                                          label="Extra κόστος"
+                                          htmlFor={`choice-price-${group.id}`}
+                                          required
+                                        >
+                                          <Input
+                                            id={`choice-price-${group.id}`}
+                                            value={newChoicePriceDelta}
+                                            onChange={(e) =>
+                                              setNewChoicePriceDelta(e.target.value)
+                                            }
+                                            placeholder="π.χ. 0 ή 0.50"
+                                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                                          />
+                                        </Field>
+                                      </div>
+
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="rounded-xl"
+                                          loading={isPending}
+                                          onClick={() => handleCreateOptionChoice(group)}
+                                        >
+                                          Αποθήκευση επιλογής
+                                        </Button>
+
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          className="rounded-xl"
+                                          onClick={() => {
+                                            setOpenChoiceGroupId(null)
+                                            setNewChoiceName('')
+                                            setNewChoicePriceDelta('0')
+                                          }}
+                                        >
+                                          Άκυρο
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : null}
+
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {group.product_option_choices &&
+                                    group.product_option_choices.length > 0 ? (
+                                      group.product_option_choices.map((choice) => (
+                                        <div
+                                          key={choice.id}
+                                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs text-[#6f6156] shadow-sm"
+                                        >
+                                          <span>
+                                            {choice.name_el}
+                                            {Number(choice.price_delta) > 0
+                                              ? ` (+${formatCurrency(
+                                                  Number(choice.price_delta),
+                                                  currency,
+                                                )})`
+                                              : ''}
+                                          </span>
+
+                                          <button
+                                            type="button"
+                                            className="text-red-500 hover:text-red-700"
+                                            onClick={() => handleDeleteOptionChoice(choice.id)}
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <p className="text-xs text-[#7b6657]">
+                                        Δεν υπάρχουν επιλογές σε αυτή την ομάδα ακόμα.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div className="mt-3 flex justify-end gap-2">

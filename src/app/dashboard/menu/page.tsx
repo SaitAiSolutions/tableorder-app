@@ -22,7 +22,7 @@ export default async function DashboardMenuPage() {
           Μενού
         </h2>
         <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Δημιουργία κατηγοριών και προϊόντων για το customer ordering app.
+          Δημιουργία κατηγοριών, προϊόντων και επιλογών για το customer ordering app.
         </p>
       </div>
 

@@ -15,6 +15,7 @@ import type {
   Product,
   ProductOptionChoice,
   ProductOptionGroup,
+  ProductWithOptions,
   Table,
   UpdateCategory,
   UpdateProduct,
@@ -151,7 +152,7 @@ export async function getCategoriesForDashboard(
 export async function getProductsForDashboard(
   businessId?: string,
   categoryId?: string,
-): Promise<ActionResult<Product[]>> {
+): Promise<ActionResult<ProductWithOptions[]>> {
   const supabase = await createClient()
 
   let resolvedBusinessId = businessId
@@ -173,10 +174,22 @@ export async function getProductsForDashboard(
         id,
         name_el,
         name_en
+      ),
+      product_option_groups (
+        *,
+        product_option_choices (*)
       )
     `)
     .eq('business_id', resolvedBusinessId)
     .order('sort_order')
+    .order('sort_order', {
+      referencedTable: 'product_option_groups',
+      ascending: true,
+    })
+    .order('sort_order', {
+      referencedTable: 'product_option_groups.product_option_choices',
+      ascending: true,
+    })
 
   if (categoryId) {
     query = query.eq('category_id', categoryId)
@@ -185,7 +198,7 @@ export async function getProductsForDashboard(
   const { data, error } = await query
 
   if (error) return { data: null, error: error.message }
-  return { data: (data ?? []) as unknown as Product[], error: null }
+  return { data: (data ?? []) as unknown as ProductWithOptions[], error: null }
 }
 
 export async function createCategory(
