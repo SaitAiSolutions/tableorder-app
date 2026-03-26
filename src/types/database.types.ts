@@ -1,4 +1,3 @@
-// Path: src/types/database.types.ts
 //
 // Hand-authored types that mirror the v3 Supabase schema exactly.
 // Regenerate automatically at any time with:
@@ -56,6 +55,12 @@ export interface Business {
   currency: string
   default_language: Language
   is_active: boolean
+  trial_starts_at: string | null
+  trial_ends_at: string | null
+  subscription_status: string
+  subscription_plan: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
   created_at: string
   updated_at: string
 }
