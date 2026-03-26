@@ -3,8 +3,12 @@
 import { useEffect, useState, useTransition } from 'react'
 import { LiveOrderFeed } from './live-order-feed'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
-import { clearTable } from '@/lib/actions/tables.actions'
-import type { OrderWithItems } from '@/types/database.types'
+import {
+  clearTable,
+  getTablesWithSessions,
+  transferOrder,
+} from '@/lib/actions/tables.actions'
+import type { OrderWithItems, TableWithActiveSession } from '@/types/database.types'
 
 interface OrdersClientProps {
   initialOrders: OrderWithItems[]
@@ -20,11 +24,23 @@ type OrderWithOptionalTable = OrderWithItems & {
 
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
   const [orders, setOrders] = useState(initialOrders)
+  const [availableTables, setAvailableTables] = useState<TableWithActiveSession[]>([])
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setOrders(initialOrders)
   }, [initialOrders])
+
+  useEffect(() => {
+    async function loadTables() {
+      const result = await getTablesWithSessions()
+      if (!result.error && result.data) {
+        setAvailableTables(result.data)
+      }
+    }
+
+    loadTables()
+  }, [])
 
   function patchOrder(orderId: string, nextStatus: OrderWithItems['status']) {
     setOrders((prev) =>
@@ -77,21 +93,67 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
 
     startTransition(async () => {
       const result = await clearTable(tableId)
+
       if (!result.error) {
-        setOrders((prev) => prev.filter((o) => {
-          const current = o as OrderWithOptionalTable
-          return current.table?.id !== tableId
-        }))
+        setOrders((prev) =>
+          prev.filter((o) => {
+            const current = o as OrderWithOptionalTable
+            return current.table?.id !== tableId
+          }),
+        )
+
+        const tablesResult = await getTablesWithSessions()
+        if (!tablesResult.error && tablesResult.data) {
+          setAvailableTables(tablesResult.data)
+        }
       }
     })
   }
 
+  function handleTransfer(orderId: string, targetTableId: string) {
+    if (!targetTableId) return
+
+    startTransition(async () => {
+      const result = await transferOrder(orderId, targetTableId)
+
+      if (!result.error) {
+        const targetTable = availableTables.find((t) => t.id === targetTableId)
+
+        setOrders((prev) =>
+          prev.map((order) => {
+            if (order.id !== orderId) return order
+
+            const current = order as OrderWithOptionalTable
+
+            return {
+              ...order,
+              table: {
+                id: targetTable?.id ?? targetTableId,
+                table_number: targetTable?.table_number ?? current.table?.table_number,
+                name: targetTable?.name ?? null,
+              },
+            }
+          }),
+        )
+
+        const tablesResult = await getTablesWithSessions()
+        if (!tablesResult.error && tablesResult.data) {
+          setAvailableTables(tablesResult.data)
+        }
+      }
+    })
+  }
+
+  const freeTables = availableTables.filter((table) => !table.active_session)
+
   return (
     <LiveOrderFeed
       initialOrders={orders}
+      availableTables={freeTables}
       onAdvance={handleAdvance}
       onCancel={handleCancel}
       onClearTable={handleClearTable}
+      onTransfer={handleTransfer}
       pending={isPending}
     />
   )

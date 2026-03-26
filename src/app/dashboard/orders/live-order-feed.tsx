@@ -3,21 +3,25 @@
 import { useMemo } from 'react'
 import { OrderCard } from '@/components/dashboard/order-card'
 import { useRealtimeOrders } from '@/hooks/use-realtime-orders'
-import type { OrderWithItems } from '@/types/database.types'
+import type { OrderWithItems, TableWithActiveSession } from '@/types/database.types'
 
 interface LiveOrderFeedProps {
   initialOrders: OrderWithItems[]
+  availableTables?: TableWithActiveSession[]
   onAdvance?: (orderId: string, currentStatus: OrderWithItems['status']) => void
   onCancel?: (orderId: string) => void
   onClearTable?: (orderId: string) => void
+  onTransfer?: (orderId: string, targetTableId: string) => void
   pending?: boolean
 }
 
 export function LiveOrderFeed({
   initialOrders,
+  availableTables = [],
   onAdvance,
   onCancel,
   onClearTable,
+  onTransfer,
   pending = false,
 }: LiveOrderFeedProps) {
   const { orders } = useRealtimeOrders(initialOrders)
@@ -49,6 +53,7 @@ export function LiveOrderFeed({
           <OrderCard
             key={order.id}
             order={order}
+            availableTables={availableTables}
             onAdvance={
               onAdvance
                 ? (orderId) => onAdvance(orderId, order.status)
@@ -56,6 +61,7 @@ export function LiveOrderFeed({
             }
             onCancel={onCancel}
             onClearTable={onClearTable}
+            onTransfer={onTransfer}
           />
         ))}
       </div>

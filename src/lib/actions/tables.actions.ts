@@ -303,11 +303,16 @@ export async function clearTable(tableId: string): Promise<ActionResult> {
 }
 
 export async function transferOrder(
-  businessId: string,
   orderId: string,
   targetTableId: string,
 ): Promise<ActionResult> {
   const supabase = await createClient()
+
+  const { businessId, error: businessError } = await resolveCurrentBusinessId()
+
+  if (businessError || !businessId) {
+    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
 
   const { data, error } = await supabase.rpc('transfer_order' as never, {
     p_business_id: businessId,
@@ -339,6 +344,7 @@ export async function transferOrder(
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
 
   return { data: null, error: null }
