@@ -31,7 +31,7 @@ function getPlanFromTableCount(tableCount: number) {
     return {
       plan: 'starter',
       name: 'TableOrder Starter',
-      price: 1500, // 15.00 EUR in cents
+      price: 1500,
     }
   }
 
@@ -39,14 +39,14 @@ function getPlanFromTableCount(tableCount: number) {
     return {
       plan: 'growth',
       name: 'TableOrder Growth',
-      price: 2500, // 25.00 EUR in cents
+      price: 2500,
     }
   }
 
   return {
     plan: 'pro',
     name: 'TableOrder Pro',
-    price: 3500, // 35.00 EUR in cents
+    price: 3500,
   }
 }
 
@@ -292,6 +292,13 @@ export async function createStripeCheckoutSession(): Promise<void> {
       business_id: business.id,
       subscription_plan: selectedPlan.plan,
       table_count: String(resolvedTableCount),
+    },
+    subscription_data: {
+      metadata: {
+        business_id: business.id,
+        subscription_plan: selectedPlan.plan,
+        table_count: String(resolvedTableCount),
+      },
     },
     line_items: [
       {

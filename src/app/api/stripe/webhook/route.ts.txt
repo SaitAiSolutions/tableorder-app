@@ -1,0 +1,254 @@
+import Stripe from 'stripe'
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export const runtime = 'nodejs'
+
+function getStripeClient() {
+  const secretKey = process.env.STRIPE_SECRET_KEY
+
+  if (!secretKey) {
+    throw new Error('Missing STRIPE_SECRET_KEY')
+  }
+
+  return new Stripe(secretKey)
+}
+
+function getWebhookSecret() {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
+  if (!webhookSecret) {
+    throw new Error('Missing STRIPE_WEBHOOK_SECRET')
+  }
+
+  return webhookSecret
+}
+
+function toIsoOrNull(value: number | null | undefined) {
+  if (!value) return null
+  return new Date(value * 1000).toISOString()
+}
+
+export async function POST(req: Request) {
+  const stripe = getStripeClient()
+  const webhookSecret = getWebhookSecret()
+  const admin = createAdminClient()
+
+  const signature = req.headers.get('stripe-signature')
+
+  if (!signature) {
+    return NextResponse.json(
+      { error: 'Missing stripe-signature header' },
+      { status: 400 },
+    )
+  }
+
+  const rawBody = await req.text()
+
+  let event: Stripe.Event
+
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Webhook signature failed'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+
+        if (session.mode !== 'subscription') {
+          break
+        }
+
+        const businessId =
+          session.metadata?.business_id ??
+          null
+
+        const subscriptionId =
+          typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription?.id ?? null
+
+        const customerId =
+          typeof session.customer === 'string'
+            ? session.customer
+            : session.customer?.id ?? null
+
+        if (!businessId) break
+
+        let plan =
+          session.metadata?.subscription_plan ?? 'starter'
+
+        let currentPeriodStart: string | null = null
+        let currentPeriodEnd: string | null = null
+
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+          plan = subscription.metadata?.subscription_plan || plan
+          currentPeriodStart = toIsoOrNull(subscription.current_period_start)
+          currentPeriodEnd = toIsoOrNull(subscription.current_period_end)
+        }
+
+        const { error } = await admin
+          .from('businesses')
+          .update({
+            account_status: 'active',
+            subscription_status: 'active',
+            subscription_plan: plan,
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
+            current_period_starts_at: currentPeriodStart,
+            current_period_ends_at: currentPeriodEnd,
+            grace_period_ends_at: null,
+            suspended_at: null,
+            last_payment_failed_at: null,
+            outstanding_balance: 0,
+          } as never)
+          .eq('id', businessId)
+
+        if (error) {
+          throw new Error(error.message)
+        }
+
+        break
+      }
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription
+
+        const businessId = subscription.metadata?.business_id
+        if (!businessId) break
+
+        const nextAccountStatus =
+          subscription.status === 'active' || subscription.status === 'trialing'
+            ? 'active'
+            : subscription.status === 'past_due'
+              ? 'grace_period'
+              : subscription.status === 'unpaid'
+                ? 'suspended'
+                : subscription.status === 'canceled'
+                  ? 'cancelled'
+                  : 'active'
+
+        const nextSubscriptionStatus =
+          subscription.status === 'active' || subscription.status === 'trialing'
+            ? 'active'
+            : subscription.status === 'past_due'
+              ? 'past_due'
+              : subscription.status === 'unpaid'
+                ? 'unpaid'
+                : subscription.status === 'canceled'
+                  ? 'cancelled'
+                  : 'active'
+
+        const gracePeriodEndsAt =
+          subscription.status === 'past_due'
+            ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+            : null
+
+        const { error } = await admin
+          .from('businesses')
+          .update({
+            account_status: nextAccountStatus,
+            subscription_status: nextSubscriptionStatus,
+            subscription_plan: subscription.metadata?.subscription_plan ?? null,
+            stripe_subscription_id: subscription.id,
+            current_period_starts_at: toIsoOrNull(subscription.current_period_start),
+            current_period_ends_at: toIsoOrNull(subscription.current_period_end),
+            grace_period_ends_at: gracePeriodEndsAt,
+            suspended_at:
+              subscription.status === 'unpaid' ? new Date().toISOString() : null,
+          } as never)
+          .eq('id', businessId)
+
+        if (error) {
+          throw new Error(error.message)
+        }
+
+        break
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription
+        const businessId = subscription.metadata?.business_id
+        if (!businessId) break
+
+        const { error } = await admin
+          .from('businesses')
+          .update({
+            account_status: 'cancelled',
+            subscription_status: 'cancelled',
+            current_period_starts_at: null,
+            current_period_ends_at: null,
+            grace_period_ends_at: null,
+          } as never)
+          .eq('id', businessId)
+
+        if (error) {
+          throw new Error(error.message)
+        }
+
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice
+
+        const subscriptionId =
+          typeof invoice.subscription === 'string'
+            ? invoice.subscription
+            : invoice.subscription?.id ?? null
+
+        if (!subscriptionId) break
+
+        const { data: businessRow, error: fetchError } = await admin
+          .from('businesses')
+          .select('id, outstanding_balance')
+          .eq('stripe_subscription_id', subscriptionId)
+          .maybeSingle()
+
+        if (fetchError) {
+          throw new Error(fetchError.message)
+        }
+
+        if (!businessRow?.id) break
+
+        const currentBalance = Number(businessRow.outstanding_balance ?? 0)
+        const invoiceAmount = Number((invoice.amount_due ?? 0) / 100)
+
+        const { error } = await admin
+          .from('businesses')
+          .update({
+            account_status: 'grace_period',
+            subscription_status: 'past_due',
+            grace_period_ends_at: new Date(
+              Date.now() + 3 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+            last_payment_failed_at: new Date().toISOString(),
+            outstanding_balance: currentBalance + invoiceAmount,
+          } as never)
+          .eq('id', businessRow.id)
+
+        if (error) {
+          throw new Error(error.message)
+        }
+
+        break
+      }
+
+      default:
+        break
+    }
+
+    return NextResponse.json({ received: true })
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Webhook handler failed'
+
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
