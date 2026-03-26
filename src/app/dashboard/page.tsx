@@ -4,18 +4,19 @@ import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import { getOrdersByBusiness } from '@/lib/actions/orders.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
-import { getRemainingTrialDays, isTrialExpired } from '@/lib/utils/trial'
+import { getTrialStatus } from '@/lib/utils/trial'
 
 export default async function DashboardHomePage() {
   const { data: business } = await getCurrentBusiness()
 
   if (!business) return null
 
-  const trialEndsAt = (business as any).trial_ends_at as string | null | undefined
-  const expired = isTrialExpired(trialEndsAt)
-  const remainingDays = getRemainingTrialDays(trialEndsAt)
+  const trial = getTrialStatus(
+    business.trial_ends_at,
+    business.subscription_status,
+  )
 
-  if (expired) {
+  if (trial.expired) {
     return (
       <div className="space-y-6 sm:space-y-8">
         <div className="overflow-hidden rounded-[24px] border border-[#f1d4d4] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
@@ -82,17 +83,13 @@ export default async function DashboardHomePage() {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <div className="rounded-[22px] border border-[#e8ddd2] bg-[#fcfaf7] px-5 py-4 text-sm text-[#6f6156] shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
-        {remainingDays !== null ? (
-          <>
-            Απομένουν{' '}
-            <span className="font-semibold text-gray-900">{remainingDays}</span>{' '}
-            ημέρες από τη δωρεάν δοκιμή σας.
-          </>
-        ) : (
-          <>Η δωρεάν δοκιμή σας είναι ενεργή.</>
-        )}
-      </div>
+      {!trial.isActiveSubscription && typeof trial.daysLeft === 'number' ? (
+        <div className="rounded-[22px] border border-[#e8ddd2] bg-[#fcfaf7] px-5 py-4 text-sm text-[#6f6156] shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
+          Απομένουν{' '}
+          <span className="font-semibold text-gray-900">{trial.daysLeft}</span>{' '}
+          ημέρες από τη δωρεάν δοκιμή σας.
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-[24px] border border-[#ebe5dd] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
         <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-7 text-white sm:px-6 sm:py-8 lg:px-8">
@@ -100,7 +97,7 @@ export default async function DashboardHomePage() {
             Overview
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
-            {business?.name ?? 'Dashboard'}
+            {business.name ?? 'Dashboard'}
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 lg:text-base">
             Επισκόπηση επιχείρησης, παραγγελιών και πληρότητας τραπεζιών σε ένα σημείο.
@@ -135,7 +132,7 @@ export default async function DashboardHomePage() {
           </div>
           <p className="text-sm text-[#7b6657]">Σύνολο σήμερα</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
-            {formatCurrency(todayRevenue, business?.currency ?? 'EUR')}
+            {formatCurrency(todayRevenue, business.currency ?? 'EUR')}
           </p>
         </div>
       </div>
