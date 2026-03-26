@@ -204,13 +204,69 @@ export async function updateTable(
     .select()
     .single()
 
-  if (error) return { data: null, error: error.message }
+  if (error) {
+    if (error.code === '23505') {
+      return {
+        data: null,
+        error: 'Υπάρχει ήδη τραπέζι με αυτόν τον αριθμό.',
+      }
+    }
+    return { data: null, error: error.message }
+  }
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
 
   return { data: data as Table, error: null }
+}
+
+export async function deleteTable(tableId: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { data: tableRow, error: tableError } = await supabase
+    .from('tables')
+    .select('id')
+    .eq('id', tableId)
+    .single()
+
+  if (tableError || !tableRow) {
+    return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
+  }
+
+  const { data: activeSession, error: sessionError } = await supabase
+    .from('table_sessions')
+    .select('id')
+    .eq('table_id', tableId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (sessionError) {
+    return { data: null, error: sessionError.message }
+  }
+
+  if (activeSession) {
+    return {
+      data: null,
+      error: 'Δεν μπορείτε να διαγράψετε κατειλημμένο τραπέζι.',
+    }
+  }
+
+  const { error } = await supabase
+    .from('tables')
+    .delete()
+    .eq('id', tableId)
+
+  if (error) {
+    return { data: null, error: error.message }
+  }
+
+  revalidatePath('/dashboard/tables')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard', 'layout')
+
+  return { data: null, error: null }
 }
 
 export async function clearTable(tableId: string): Promise<ActionResult> {
