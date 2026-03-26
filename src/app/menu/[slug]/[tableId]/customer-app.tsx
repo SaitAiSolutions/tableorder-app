@@ -80,7 +80,10 @@ export function CustomerApp({ data }: CustomerAppProps) {
       const choiceIds = options.map((opt) => opt.choice_id)
       const key = buildCartKey(product.id, choiceIds)
       const basePrice = Number(product.price ?? 0)
-      const optionsTotal = options.reduce((sum, opt) => sum + Number(opt.price_delta ?? 0), 0)
+      const optionsTotal = options.reduce(
+        (sum, opt) => sum + Number(opt.price_delta ?? 0),
+        0,
+      )
       const unitPrice = basePrice + optionsTotal
 
       const existing = prev.find((item) => item.key === key)
@@ -210,33 +213,6 @@ export function CustomerApp({ data }: CustomerAppProps) {
   }
 
   async function handleSubmitOrder(notes?: string) {
-  if (cart.length === 0) return
-
-  setSubmitting(true)
-  setSubmitError(null)
-
-  const result = await placeOrder({
-    p_business_id: data.business.id,
-    p_table_id: data.table.id,
-    p_notes: notes ?? null,
-    p_items: cart.map((item) => ({
-      product_id: item.product_id,
-      quantity: item.quantity,
-      choice_ids: item.options.map((opt) => opt.choice_id),
-    })),
-  })
-
-  setSubmitting(false)
-
-  if (result.error) {
-    setSubmitError(result.error)
-    return
-  }
-
-  setCart([])
-  setCartOpen(false)
-  setConfirmationOpen(true)
-}
     if (cart.length === 0) return
 
     setSubmitting(true)
@@ -245,7 +221,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
     const result = await placeOrder({
       p_business_id: data.business.id,
       p_table_id: data.table.id,
-      p_notes: null,
+      p_notes: notes ?? null,
       p_items: cart.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
