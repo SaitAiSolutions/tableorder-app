@@ -20,31 +20,6 @@ interface CustomerAppProps {
   data: CustomerMenuData
 }
 
-type ProductOptionChoiceLite = {
-  id: string
-  name_el: string
-  price_delta: number | string | null
-}
-
-type ProductOptionGroupLite = {
-  id: string
-  name_el: string
-  is_required: boolean | null
-  product_option_choices?: ProductOptionChoiceLite[]
-}
-
-type ProductWithOptions = CategoryWithProducts['products'][number] & {
-  product_option_groups?: ProductOptionGroupLite[]
-}
-
-type SelectedCartOption = {
-  choice_id: string
-  group_id: string
-  group_name: string
-  choice_name: string
-  price_delta: number
-}
-
 export function CustomerApp({ data }: CustomerAppProps) {
   const [cart, setCart] = useState<CartItem[]>([])
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
@@ -54,8 +29,11 @@ export function CustomerApp({ data }: CustomerAppProps) {
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [orderNotes, setOrderNotes] = useState('')
 
-  const [optionProduct, setOptionProduct] = useState<ProductWithOptions | null>(null)
+  const [optionProduct, setOptionProduct] = useState<
+    CategoryWithProducts['products'][number] | null
+  >(null)
   const [selectedChoices, setSelectedChoices] = useState<Record<string, string>>({})
   const [optionError, setOptionError] = useState<string | null>(null)
 
@@ -72,21 +50,37 @@ export function CustomerApp({ data }: CustomerAppProps) {
     return `${productId}::${sorted.join(',')}`
   }
 
-  function addConfiguredProduct(
-    product: ProductWithOptions,
-    options: SelectedCartOption[],
-  ) {
-    setCart((prev) => {
-      const choiceIds = options.map((opt) => opt.choice_id)
-      const key = buildCartKey(product.id, choiceIds)
-      const basePrice = Number(product.price ?? 0)
-      const optionsTotal = options.reduce(
-        (sum, opt) => sum + Number(opt.price_delta ?? 0),
-        0,
-      )
-      const unitPrice = basePrice + optionsTotal
+  function openOptionsModal(product: CategoryWithProducts['products'][number]) {
+    setOptionError(null)
+    setOptionProduct(product)
+    setSelectedChoices({})
+  }
 
+  function closeOptionsModal() {
+    setOptionProduct(null)
+    setSelectedChoices({})
+    setOptionError(null)
+  }
+
+  function handleSelectChoice(groupId: string, choiceId: string) {
+    setSelectedChoices((prev) => ({
+      ...prev,
+      [groupId]: prev[groupId] === choiceId ? '' : choiceId,
+    }))
+  }
+
+  function addToCart(product: CategoryWithProducts['products'][number]) {
+    const optionGroups = product.product_option_groups ?? []
+
+    if (optionGroups.length > 0) {
+      openOptionsModal(product)
+      return
+    }
+
+    setCart((prev) => {
+      const key = buildCartKey(product.id, [])
       const existing = prev.find((item) => item.key === key)
+      const basePrice = Number(product.price ?? 0)
 
       if (existing) {
         return prev.map((item) =>
@@ -104,81 +98,85 @@ export function CustomerApp({ data }: CustomerAppProps) {
         key,
         product_id: product.id,
         name: product.name_el,
-        base_price: unitPrice,
+        base_price: basePrice,
         quantity: 1,
-        options: options.map((opt) => ({
-          choice_id: opt.choice_id,
-          group_id: opt.group_id,
-          group_name: opt.group_name,
-          choice_name: opt.choice_name,
-          price_delta: opt.price_delta,
-        })),
-        line_total: unitPrice,
+        options: [],
+        line_total: basePrice,
       }
 
       return [...prev, nextItem]
     })
   }
 
-  function addToCart(product: CategoryWithProducts['products'][number]) {
-    const safeProduct = product as ProductWithOptions
-    const groups = safeProduct.product_option_groups ?? []
-
-    if (groups.length === 0) {
-      addConfiguredProduct(safeProduct, [])
-      return
-    }
-
-    setOptionProduct(safeProduct)
-    setSelectedChoices({})
-    setOptionError(null)
-  }
-
-  function closeOptionsModal() {
-    setOptionProduct(null)
-    setSelectedChoices({})
-    setOptionError(null)
-  }
-
-  function handleSelectChoice(groupId: string, choiceId: string) {
-    setSelectedChoices((prev) => ({
-      ...prev,
-      [groupId]: choiceId,
-    }))
-    setOptionError(null)
-  }
-
   function handleConfirmOptions() {
     if (!optionProduct) return
 
-    const groups = optionProduct.product_option_groups ?? []
+    const optionGroups = optionProduct.product_option_groups ?? []
 
-    for (const group of groups) {
+    for (const group of optionGroups) {
       if (group.is_required && !selectedChoices[group.id]) {
         setOptionError(`Παρακαλώ επιλέξτε: ${group.name_el}`)
         return
       }
     }
 
-    const selectedOptions: SelectedCartOption[] = []
+    const selectedOptionObjects = optionGroups
+      .map((group) => {
+        const selectedChoiceId = selectedChoices[group.id]
+        if (!selectedChoiceId) return null
 
-    for (const group of groups) {
-      const selectedChoiceId = selectedChoices[group.id]
-      if (!selectedChoiceId) continue
+        const choice = group.product_option_choices?.find(
+          (item) => item.id === selectedChoiceId,
+        )
+        if (!choice) return null
 
-      const choice = group.product_option_choices?.find((c) => c.id === selectedChoiceId)
-      if (!choice) continue
-
-      selectedOptions.push({
-        choice_id: choice.id,
-        group_id: group.id,
-        group_name: group.name_el,
-        choice_name: choice.name_el,
-        price_delta: Number(choice.price_delta ?? 0),
+        return {
+          group_id: group.id,
+          group_name: group.name_el,
+          choice_id: choice.id,
+          choice_name: choice.name_el,
+          price_delta: Number(choice.price_delta ?? 0),
+        }
       })
-    }
+      .filter(Boolean) as CartItem['options']
 
-    addConfiguredProduct(optionProduct, selectedOptions)
+    const selectedChoiceIds = selectedOptionObjects.map((option) => option.choice_id)
+    const basePrice = Number(optionProduct.price ?? 0)
+    const optionExtra = selectedOptionObjects.reduce(
+      (sum, option) => sum + Number(option.price_delta ?? 0),
+      0,
+    )
+    const finalUnitPrice = basePrice + optionExtra
+
+    setCart((prev) => {
+      const key = buildCartKey(optionProduct.id, selectedChoiceIds)
+      const existing = prev.find((item) => item.key === key)
+
+      if (existing) {
+        return prev.map((item) =>
+          item.key === existing.key
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                line_total: (item.quantity + 1) * item.base_price,
+              }
+            : item,
+        )
+      }
+
+      const nextItem: CartItem = {
+        key,
+        product_id: optionProduct.id,
+        name: optionProduct.name_el,
+        base_price: finalUnitPrice,
+        quantity: 1,
+        options: selectedOptionObjects,
+        line_total: finalUnitPrice,
+      }
+
+      return [...prev, nextItem]
+    })
+
     closeOptionsModal()
   }
 
@@ -212,7 +210,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
     )
   }
 
-  async function handleSubmitOrder(notes?: string) {
+  async function handleSubmitOrder() {
     if (cart.length === 0) return
 
     setSubmitting(true)
@@ -221,7 +219,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
     const result = await placeOrder({
       p_business_id: data.business.id,
       p_table_id: data.table.id,
-      p_notes: notes ?? null,
+      p_notes: orderNotes.trim() || null,
       p_items: cart.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
@@ -237,6 +235,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
     }
 
     setCart([])
+    setOrderNotes('')
     setCartOpen(false)
     setConfirmationOpen(true)
   }
@@ -246,15 +245,13 @@ export function CustomerApp({ data }: CustomerAppProps) {
 
   const optionGroups = optionProduct?.product_option_groups ?? []
   const optionBasePrice = Number(optionProduct?.price ?? 0)
-
   const optionSelectedTotal = optionGroups.reduce((sum, group) => {
     const selectedChoiceId = selectedChoices[group.id]
     if (!selectedChoiceId) return sum
 
-    const choice = group.product_option_choices?.find((c) => c.id === selectedChoiceId)
+    const choice = group.product_option_choices?.find((item) => item.id === selectedChoiceId)
     return sum + Number(choice?.price_delta ?? 0)
   }, 0)
-
   const optionFinalPrice = optionBasePrice + optionSelectedTotal
 
   return (
@@ -321,6 +318,8 @@ export function CustomerApp({ data }: CustomerAppProps) {
         open={cartOpen}
         cart={cart}
         currency={data.business.currency}
+        notes={orderNotes}
+        onNotesChange={setOrderNotes}
         onClose={() => setCartOpen(false)}
         onIncrease={increaseItem}
         onDecrease={decreaseItem}
