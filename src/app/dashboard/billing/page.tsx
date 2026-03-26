@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { CheckCircle2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react'
 import {
   createStripeCheckoutSession,
+  createStripePortalSession,
   getCurrentBusiness,
 } from '@/lib/actions/business.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
@@ -65,6 +66,8 @@ export default async function DashboardBillingPage() {
 
   const formattedTrialEndDate = formatTrialEndDate(business.trial_ends_at)
   const recommendedPlan = getPlanByTableCount(tableCount)
+  const hasStripeCustomer = !!business.stripe_customer_id
+  const hasActiveSubscription = business.subscription_status === 'active'
 
   const planLabel =
     business.subscription_status === 'active'
@@ -275,14 +278,36 @@ export default async function DashboardBillingPage() {
           </p>
 
           <div className="mt-6 space-y-3">
-            <form action={createStripeCheckoutSession}>
-              <button
-                type="submit"
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
-              >
-                Αναβάθμιση σε πληρωμένο πακέτο
-              </button>
-            </form>
+            {hasActiveSubscription ? (
+              <form action={createStripePortalSession}>
+                <button
+                  type="submit"
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                >
+                  Διαχείριση συνδρομής & κάρτας
+                </button>
+              </form>
+            ) : (
+              <form action={createStripeCheckoutSession}>
+                <button
+                  type="submit"
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                >
+                  Αναβάθμιση σε πληρωμένο πακέτο
+                </button>
+              </form>
+            )}
+
+            {hasStripeCustomer ? (
+              <form action={createStripePortalSession}>
+                <button
+                  type="submit"
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+                >
+                  Άνοιγμα Customer Portal
+                </button>
+              </form>
+            ) : null}
 
             <Link
               href="/dashboard"
@@ -293,7 +318,8 @@ export default async function DashboardBillingPage() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-[#8b715d]">
-            Το κουμπί τώρα ανοίγει Stripe Checkout για το προτεινόμενο πακέτο.
+            Με το Stripe Customer Portal ο πελάτης μπορεί να ενημερώνει κάρτα,
+            να βλέπει billing details και να διαχειρίζεται τη συνδρομή του.
           </p>
         </div>
       </div>

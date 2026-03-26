@@ -329,3 +329,46 @@ export async function createStripeCheckoutSession(): Promise<void> {
 
   redirect(session.url)
 }
+
+export async function createStripePortalSession(): Promise<void> {
+  const supabase = await createClient()
+  const stripe = getStripeClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/auth/login')
+  }
+
+  const { data: businessData, error: businessError } = await supabase
+    .from('businesses')
+    .select('*, business_users!inner(user_id)')
+    .eq('business_users.user_id', user.id)
+    .eq('is_active', true)
+    .single()
+
+  if (businessError || !businessData) {
+    throw new Error('Δεν βρέθηκε επιχείρηση για portal.')
+  }
+
+  const business = businessData as unknown as Business
+
+  if (!business.stripe_customer_id) {
+    throw new Error(
+      'Δεν υπάρχει Stripe customer για αυτή την επιχείρηση. Κάντε πρώτα checkout.',
+    )
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: business.stripe_customer_id,
+    return_url: `${getAppUrl()}/dashboard/billing`,
+  })
+
+  if (!session.url) {
+    throw new Error('Αποτυχία δημιουργίας Stripe customer portal session.')
+  }
+
+  redirect(session.url)
+}
