@@ -421,6 +421,26 @@ export async function updateProduct(
   return { data: data as unknown as Product, error: null }
 }
 
+export async function toggleProductAvailability(
+  productId: string,
+  isAvailable: boolean,
+): Promise<ActionResult<Product>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('products')
+    .update({ is_available: isAvailable } as never)
+    .eq('id', productId)
+    .select()
+    .single()
+
+  if (error) return { data: null, error: error.message }
+
+  revalidatePath('/dashboard/menu')
+  revalidatePath('/dashboard', 'layout')
+  return { data: data as unknown as Product, error: null }
+}
+
 export async function deleteProduct(productId: string): Promise<ActionResult> {
   const supabase = await createClient()
 

@@ -13,6 +13,7 @@ import {
   deleteProduct,
   moveCategoryDown,
   moveCategoryUp,
+  toggleProductAvailability,
   updateCategory,
   updateProduct,
   uploadProductImage,
@@ -187,6 +188,29 @@ export function MenuManager({
 
       setDeletingProductId(null)
       setProductSuccess('Το προϊόν διαγράφηκε.')
+    })
+  }
+
+  function handleToggleAvailability(product: ProductWithOptions) {
+    startTransition(async () => {
+      setProductError(null)
+      setProductSuccess(null)
+
+      const result = await toggleProductAvailability(
+        product.id,
+        !product.is_available,
+      )
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setProductSuccess(
+        result.data?.is_available
+          ? 'Το προϊόν είναι πλέον διαθέσιμο.'
+          : 'Το προϊόν έγινε μη διαθέσιμο.',
+      )
     })
   }
 
@@ -917,9 +941,22 @@ export function MenuManager({
                             </div>
 
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {product.name_el}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {product.name_el}
+                                </p>
+
+                                <span
+                                  className={
+                                    product.is_available
+                                      ? 'rounded-full bg-[#e7f6ea] px-2.5 py-1 text-[11px] font-medium text-[#26734d]'
+                                      : 'rounded-full bg-[#fce7d6] px-2.5 py-1 text-[11px] font-medium text-[#9a5b24]'
+                                  }
+                                >
+                                  {product.is_available ? 'Διαθέσιμο' : 'Μη διαθέσιμο'}
+                                </span>
+                              </div>
+
                               <p className="mt-1 truncate text-xs text-[#7b6657]">
                                 {product.description_el ?? 'Χωρίς περιγραφή'}
                               </p>
@@ -1167,6 +1204,16 @@ export function MenuManager({
                         </div>
 
                         <div className="mt-3 flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-xl"
+                            onClick={() => handleToggleAvailability(product)}
+                          >
+                            {product.is_available ? 'Μη διαθέσιμο' : 'Διαθέσιμο'}
+                          </Button>
+
                           <Button
                             type="button"
                             size="sm"
