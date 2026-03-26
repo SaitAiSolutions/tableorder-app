@@ -42,6 +42,18 @@ async function resolveCurrentBusinessId() {
   return { businessId: row.business_id, error: null }
 }
 
+async function refreshBusinessPlan(businessId: string) {
+  const supabase = await createClient()
+
+  await supabase.rpc('refresh_business_plan_from_tables' as never, {
+    p_business_id: businessId,
+  } as never)
+
+  revalidatePath('/dashboard/billing')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard', 'layout')
+}
+
 export async function getTablesWithSessions(
   businessId?: string,
 ): Promise<ActionResult<TableWithActiveSession[]>> {
@@ -184,8 +196,11 @@ export async function createTable(
     return { data: null, error: error.message }
   }
 
+  await refreshBusinessPlan(businessId)
+
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard', 'layout')
 
   return { data: data as Table, error: null }
@@ -224,6 +239,12 @@ export async function updateTable(
 export async function deleteTable(tableId: string): Promise<ActionResult> {
   const supabase = await createClient()
 
+  const { businessId, error: businessError } = await resolveCurrentBusinessId()
+
+  if (businessError || !businessId) {
+    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
   const { data: tableRow, error: tableError } = await supabase
     .from('tables')
     .select('id')
@@ -261,9 +282,12 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
     return { data: null, error: error.message }
   }
 
+  await refreshBusinessPlan(businessId)
+
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard', 'layout')
 
   return { data: null, error: null }
@@ -303,16 +327,11 @@ export async function clearTable(tableId: string): Promise<ActionResult> {
 }
 
 export async function transferOrder(
+  businessId: string,
   orderId: string,
   targetTableId: string,
 ): Promise<ActionResult> {
   const supabase = await createClient()
-
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
-  }
 
   const { data, error } = await supabase.rpc('transfer_order' as never, {
     p_business_id: businessId,
@@ -344,7 +363,6 @@ export async function transferOrder(
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/orders')
-  revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
 
   return { data: null, error: null }
