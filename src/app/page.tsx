@@ -57,13 +57,13 @@ export default function HomePage() {
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
-                <Link href="/sign-up">
+                <Link href="/auth/sign-up">
                   <Button className="rounded-2xl bg-[#1f2937] px-6 py-6 text-base text-white hover:bg-[#111827]">
                     Δωρεάν δοκιμή 14 ημερών
                   </Button>
                 </Link>
 
-                <Link href="/sign-in">
+                <Link href="/auth/login">
                   <Button
                     variant="ghost"
                     className="rounded-2xl border border-[#d8cdc1] bg-white px-6 py-6 text-base text-[#5f5146] hover:bg-[#f8f3ee]"
@@ -72,7 +72,7 @@ export default function HomePage() {
                   </Button>
                 </Link>
 
-                <Link href="/menu/cafe-rethymno">
+                <Link href="/auth/sign-up">
                   <Button
                     variant="ghost"
                     className="rounded-2xl border border-[#d8cdc1] bg-white px-6 py-6 text-base text-[#5f5146] hover:bg-[#f8f3ee]"
@@ -179,13 +179,13 @@ export default function HomePage() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <Link href="/sign-up">
+            <Link href="/auth/sign-up">
               <Button className="rounded-2xl bg-[#1f2937] px-6 py-6 text-base text-white hover:bg-[#111827]">
                 Ξεκίνα δωρεάν
               </Button>
             </Link>
 
-            <Link href="/sign-in">
+            <Link href="/auth/login">
               <Button
                 variant="ghost"
                 className="rounded-2xl border border-[#d8cdc1] bg-white px-6 py-6 text-base text-[#5f5146] hover:bg-[#f8f3ee]"
