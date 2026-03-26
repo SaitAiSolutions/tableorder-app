@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { canBusinessUseApp } from '@/lib/utils/trial'
 import type {
   OrderStatus,
   OrderWithItems,
@@ -42,6 +43,36 @@ export async function placeOrder(
   params: PlaceOrderParams,
 ): Promise<ActionResult<PlaceOrderResult>> {
   const supabase = await createClient()
+
+  const { data: businessRow, error: businessError } = await supabase
+    .from('businesses')
+    .select('id, account_status, trial_ends_at, subscription_status')
+    .eq('id', params.p_business_id)
+    .single()
+
+  if (businessError || !businessRow) {
+    return { data: null, error: 'Η επιχείρηση δεν είναι διαθέσιμη.' }
+  }
+
+  const canUse = canBusinessUseApp(
+    businessRow.account_status,
+    businessRow.trial_ends_at,
+    businessRow.subscription_status,
+  )
+
+  if (!canUse) {
+    if (businessRow.account_status === 'suspended') {
+      return {
+        data: null,
+        error: 'Η επιχείρηση δεν δέχεται παραγγελίες αυτή τη στιγμή.',
+      }
+    }
+
+    return {
+      data: null,
+      error: 'Η επιχείρηση δεν είναι διαθέσιμη αυτή τη στιγμή.',
+    }
+  }
 
   await supabase.rpc('set_current_business' as never, {
     p_id: params.p_business_id,
@@ -142,17 +173,12 @@ export async function getOrdersByBusiness(
         table_number,
         name
       ),
-      table_session:table_sessions!inner (
-        id,
-        is_active
-      ),
       order_items (
         *,
         order_item_options (*)
       )
     `)
     .eq('business_id', resolvedBusinessId)
-    .eq('table_session.is_active', true)
     .order('created_at', { ascending: false })
     .limit(limit)
 

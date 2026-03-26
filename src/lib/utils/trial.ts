@@ -40,13 +40,6 @@ export function getTrialStatus(
   }
 }
 
-export function isTrialExpired(
-  trialEndsAt: string | null | undefined,
-  subscriptionStatus?: string | null,
-) {
-  return getTrialStatus(trialEndsAt, subscriptionStatus).expired
-}
-
 export function formatTrialEndDate(trialEndsAt: string | null | undefined) {
   if (!trialEndsAt) return null
 
@@ -59,4 +52,42 @@ export function formatTrialEndDate(trialEndsAt: string | null | undefined) {
     month: '2-digit',
     year: 'numeric',
   })
+}
+
+export function canBusinessUseApp(
+  accountStatus: string | null | undefined,
+  trialEndsAt: string | null | undefined,
+  subscriptionStatus: string | null | undefined,
+) {
+  if (accountStatus === 'active' && subscriptionStatus === 'active') {
+    return true
+  }
+
+  if (accountStatus === 'grace_period') {
+    return true
+  }
+
+  if (accountStatus === 'trialing' && subscriptionStatus === 'trialing') {
+    const trial = getTrialStatus(trialEndsAt, subscriptionStatus)
+    return !trial.expired
+  }
+
+  return false
+}
+
+export function getBusinessLockReason(
+  accountStatus: string | null | undefined,
+  trialEndsAt: string | null | undefined,
+  subscriptionStatus: string | null | undefined,
+) {
+  if (accountStatus === 'suspended') return 'suspended'
+  if (accountStatus === 'cancelled') return 'cancelled'
+
+  const allowed = canBusinessUseApp(accountStatus, trialEndsAt, subscriptionStatus)
+  if (allowed) return null
+
+  const trial = getTrialStatus(trialEndsAt, subscriptionStatus)
+  if (trial.expired) return 'trial_expired'
+
+  return 'inactive'
 }
