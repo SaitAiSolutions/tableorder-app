@@ -142,12 +142,17 @@ export async function getOrdersByBusiness(
         table_number,
         name
       ),
+      table_session:table_sessions!inner (
+        id,
+        is_active
+      ),
       order_items (
         *,
         order_item_options (*)
       )
     `)
     .eq('business_id', resolvedBusinessId)
+    .eq('table_session.is_active', true)
     .order('created_at', { ascending: false })
     .limit(limit)
 
