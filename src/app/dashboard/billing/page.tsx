@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { CheckCircle2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react'
-import { getCurrentBusiness } from '@/lib/actions/business.actions'
+import {
+  createStripeCheckoutSession,
+  getCurrentBusiness,
+} from '@/lib/actions/business.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 import { formatTrialEndDate, getTrialStatus } from '@/lib/utils/trial'
 
@@ -61,7 +64,6 @@ export default async function DashboardBillingPage() {
   )
 
   const formattedTrialEndDate = formatTrialEndDate(business.trial_ends_at)
-
   const recommendedPlan = getPlanByTableCount(tableCount)
 
   const planLabel =
@@ -69,7 +71,7 @@ export default async function DashboardBillingPage() {
       ? 'Ενεργή συνδρομή'
       : business.subscription_status === 'trialing'
         ? 'Δωρεάν δοκιμή'
-        : business.subscription_status === 'suspended'
+        : business.account_status === 'suspended'
           ? 'Ανεσταλμένος λογαριασμός'
           : 'Μη ενεργή συνδρομή'
 
@@ -273,12 +275,14 @@ export default async function DashboardBillingPage() {
           </p>
 
           <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
-            >
-              Αναβάθμιση σε πληρωμένο πακέτο
-            </button>
+            <form action={createStripeCheckoutSession}>
+              <button
+                type="submit"
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+              >
+                Αναβάθμιση σε πληρωμένο πακέτο
+              </button>
+            </form>
 
             <Link
               href="/dashboard"
@@ -289,8 +293,7 @@ export default async function DashboardBillingPage() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-[#8b715d]">
-            Στο επόμενο βήμα θα συνδέσουμε το κουμπί με Stripe checkout και
-            αυτόματη χρέωση.
+            Το κουμπί τώρα ανοίγει Stripe Checkout για το προτεινόμενο πακέτο.
           </p>
         </div>
       </div>
