@@ -3,7 +3,7 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import { createClient } from '@/lib/supabase/server'
-import { isTrialExpired } from '@/lib/utils/trial'
+import { formatTrialEndDate, getTrialStatus } from '@/lib/utils/trial'
 
 export default async function DashboardLayout({
   children,
@@ -20,10 +20,14 @@ export default async function DashboardLayout({
   const { data: business } = await getCurrentBusiness()
   if (!business) redirect('/onboarding')
 
-  const trialEndsAt = (business as any).trial_ends_at as string | null | undefined
-  const expired = isTrialExpired(trialEndsAt)
+  const trial = getTrialStatus(
+    business.trial_ends_at,
+    business.subscription_status,
+  )
 
-  if (expired) {
+  if (trial.expired) {
+    const formattedEndDate = formatTrialEndDate(business.trial_ends_at)
+
     return (
       <div className="min-h-screen bg-[#f6f3ee] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl space-y-6">
@@ -36,9 +40,10 @@ export default async function DashboardLayout({
                 Η δωρεάν δοκιμή σας έληξε
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85 lg:text-base">
-                Η 14ήμερη δοκιμή του TableOrder έχει ολοκληρωθεί. Για να συνεχίσετε
-                να χρησιμοποιείτε την πλατφόρμα, θα χρειαστεί να ενεργοποιήσετε
-                συνδρομή.
+                Η 14ήμερη δοκιμή του TableOrder έχει ολοκληρωθεί
+                {formattedEndDate ? ` στις ${formattedEndDate}` : ''}. Για να
+                συνεχίσετε να χρησιμοποιείτε την πλατφόρμα, θα χρειαστεί να
+                ενεργοποιήσετε συνδρομή.
               </p>
             </div>
           </div>
@@ -49,8 +54,8 @@ export default async function DashboardLayout({
             </h3>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-[#7b6657] sm:text-base">
               Το trial έχει λήξει, οπότε το dashboard είναι προσωρινά κλειδωμένο.
-              Στο επόμενο βήμα θα προσθέσουμε billing page ή Stripe upgrade για να
-              μπορεί ο χρήστης να συνεχίζει κανονικά.
+              Στο επόμενο βήμα θα προσθέσουμε billing page ή Stripe upgrade για
+              να μπορεί ο χρήστης να συνεχίζει κανονικά.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
