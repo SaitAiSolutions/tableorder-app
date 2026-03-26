@@ -9,6 +9,7 @@ import type {
   TableWithActiveSession,
   SessionWithOrders,
   OrderWithItems,
+  SubscriptionPlan,
 } from '@/types/database.types'
 
 interface ActionResult<T = null> {
@@ -52,6 +53,73 @@ async function refreshBusinessPlan(businessId: string) {
   revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
+}
+
+function getTableLimitForPlan(plan: SubscriptionPlan | null | undefined) {
+  if (plan === 'starter') return 15
+  if (plan === 'growth') return 25
+  if (plan === 'pro') return Number.POSITIVE_INFINITY
+
+  return Number.POSITIVE_INFINITY
+}
+
+async function validateTableCreationAllowed(businessId: string) {
+  const supabase = await createClient()
+
+  const { data: business, error: businessError } = await supabase
+    .from('businesses')
+    .select('account_status, subscription_plan, subscription_status')
+    .eq('id', businessId)
+    .single()
+
+  if (businessError || !business) {
+    return { allowed: false, error: 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  if (business.account_status === 'suspended') {
+    return {
+      allowed: false,
+      error:
+        'Ο λογαριασμός είναι ανεσταλμένος. Δεν μπορείτε να δημιουργήσετε τραπέζια.',
+    }
+  }
+
+  const subscriptionPlan = business.subscription_plan as SubscriptionPlan | null
+
+  if (
+    business.subscription_status === 'active' &&
+    subscriptionPlan &&
+    subscriptionPlan !== 'trial'
+  ) {
+    const { count, error: countError } = await supabase
+      .from('tables')
+      .select('*', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .eq('is_active', true)
+
+    if (countError) {
+      return { allowed: false, error: countError.message }
+    }
+
+    const activeTableCount = count ?? 0
+    const tableLimit = getTableLimitForPlan(subscriptionPlan)
+
+    if (activeTableCount >= tableLimit) {
+      const planLabel =
+        subscriptionPlan === 'starter'
+          ? 'Starter'
+          : subscriptionPlan === 'growth'
+            ? 'Growth'
+            : 'Pro'
+
+      return {
+        allowed: false,
+        error: `Έχετε φτάσει το όριο του πακέτου ${planLabel}. Αναβαθμίστε το πακέτο σας για να προσθέσετε περισσότερα τραπέζια.`,
+      }
+    }
+  }
+
+  return { allowed: true, error: null }
 }
 
 export async function getTablesWithSessions(
@@ -167,6 +235,11 @@ export async function createTable(
     return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
+  const accessCheck = await validateTableCreationAllowed(businessId)
+  if (!accessCheck.allowed) {
+    return { data: null, error: accessCheck.error }
+  }
+
   const table_number = (formData.get('table_number') as string)?.trim()
   const name = ((formData.get('name') as string) || '').trim()
 
@@ -273,10 +346,7 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
     }
   }
 
-  const { error } = await supabase
-    .from('tables')
-    .delete()
-    .eq('id', tableId)
+  const { error } = await supabase.from('tables').delete().eq('id', tableId)
 
   if (error) {
     return { data: null, error: error.message }
