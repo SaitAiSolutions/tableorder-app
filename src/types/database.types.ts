@@ -1,10 +1,7 @@
+// Path: src/types/database.types.ts
 //
-// Hand-authored types that mirror the v3 Supabase schema exactly.
-// Regenerate automatically at any time with:
-//   npm run db:types
-//
-// The Database type at the bottom is consumed by createClient<Database>()
-// in all three Supabase client files (client.ts, server.ts, middleware.ts).
+// Hand-authored types that mirror the current Supabase schema.
+// Replace this file entirely when schema fields change.
 
 // ---------------------------------------------------------------------------
 // Primitive helpers
@@ -19,10 +16,11 @@ export type Json =
   | Json[]
 
 // ---------------------------------------------------------------------------
-// Domain enums — match DB CHECK constraints exactly
+// Domain enums
 // ---------------------------------------------------------------------------
 
 export type UserRole = 'owner' | 'manager' | 'staff'
+
 export type OrderStatus =
   | 'new'
   | 'accepted'
@@ -30,11 +28,28 @@ export type OrderStatus =
   | 'ready'
   | 'completed'
   | 'cancelled'
+
 export type SessionStatus = 'active' | 'cleared'
 export type Language = 'el' | 'en'
 
+export type AccountStatus =
+  | 'trialing'
+  | 'active'
+  | 'grace_period'
+  | 'suspended'
+  | 'cancelled'
+
+export type SubscriptionStatus =
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'unpaid'
+  | 'cancelled'
+
+export type SubscriptionPlan = 'trial' | 'starter' | 'growth' | 'pro'
+
 // ---------------------------------------------------------------------------
-// Table row types — one interface per DB table
+// Table row types
 // ---------------------------------------------------------------------------
 
 export interface Profile {
@@ -55,12 +70,24 @@ export interface Business {
   currency: string
   default_language: Language
   is_active: boolean
+
+  account_status: AccountStatus
+  subscription_status: SubscriptionStatus
+  subscription_plan: SubscriptionPlan | null
+
   trial_starts_at: string | null
   trial_ends_at: string | null
-  subscription_status: string
-  subscription_plan: string | null
+
+  current_period_starts_at: string | null
+  current_period_ends_at: string | null
+  grace_period_ends_at: string | null
+  suspended_at: string | null
+
+  outstanding_balance: number
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  last_payment_failed_at: string | null
+
   created_at: string
   updated_at: string
 }
@@ -180,7 +207,7 @@ export interface OrderItemOption {
 }
 
 // ---------------------------------------------------------------------------
-// Insert types — DB-generated fields omitted, used in server actions
+// Insert types
 // ---------------------------------------------------------------------------
 
 export type InsertBusiness = Omit<Business, 'id' | 'created_at' | 'updated_at'>
@@ -192,18 +219,21 @@ export type InsertProductOptionGroup = Omit<ProductOptionGroup, 'id' | 'created_
 export type InsertProductOptionChoice = Omit<ProductOptionChoice, 'id' | 'created_at'>
 
 // ---------------------------------------------------------------------------
-// Update types — all partial, immutable fields excluded
+// Update types
 // ---------------------------------------------------------------------------
 
 export type UpdateBusiness = Partial<
   Omit<Business, 'id' | 'created_at' | 'updated_at'>
 >
+
 export type UpdateTable = Partial<
   Omit<Table, 'id' | 'business_id' | 'created_at' | 'updated_at'>
 >
+
 export type UpdateCategory = Partial<
   Omit<Category, 'id' | 'business_id' | 'created_at' | 'updated_at'>
 >
+
 export type UpdateProduct = Partial<
   Omit<Product, 'id' | 'business_id' | 'created_at' | 'updated_at'>
 >
@@ -212,46 +242,35 @@ export type UpdateProduct = Partial<
 // Joined / enriched query return types
 // ---------------------------------------------------------------------------
 
-/** Product with option groups and their choices — customer menu + product form */
 export interface ProductWithOptions extends Product {
   product_option_groups: (ProductOptionGroup & {
     product_option_choices: ProductOptionChoice[]
   })[]
 }
 
-/** Category with its available products (and options) — full menu query */
 export interface CategoryWithProducts extends Category {
   products: ProductWithOptions[]
 }
 
-/** Order item with chosen option snapshots — order display */
 export interface OrderItemWithOptions extends OrderItem {
   order_item_options: OrderItemOption[]
 }
 
-/** Full order with items and options — dashboard order card */
 export interface OrderWithItems extends Order {
   order_items: OrderItemWithOptions[]
 }
 
-/** Table session with all its orders — table detail view */
 export interface SessionWithOrders extends TableSession {
   orders: OrderWithItems[]
   session_total: number
 }
 
-/** Table with its single active session (if occupied) — tables grid */
 export interface TableWithActiveSession extends Table {
   active_session: SessionWithOrders | null
 }
 
 // ---------------------------------------------------------------------------
 // RPC parameter and return types
-//
-// Matches the v3 place_order DB function signature exactly.
-// Client sends: product_id, quantity, choice_ids[] only.
-// The DB function resolves all prices and names — nothing financial
-// or descriptive comes from the client.
 // ---------------------------------------------------------------------------
 
 export interface PlaceOrderItem {
@@ -304,8 +323,7 @@ export interface CustomerMenuData {
 }
 
 // ---------------------------------------------------------------------------
-// Cart types — client-side only, never written to the DB directly.
-// Built in CustomerApp state, serialised into PlaceOrderItem[] on submit.
+// Cart types
 // ---------------------------------------------------------------------------
 
 export interface CartItemOption {
@@ -327,9 +345,7 @@ export interface CartItem {
 }
 
 // ---------------------------------------------------------------------------
-// Database generic type — passed to createClient<Database>()
-// Matches Supabase's auto-generated type structure exactly so the
-// generated version (npm run db:types) is a drop-in replacement.
+// Database generic type
 // ---------------------------------------------------------------------------
 
 export type Database = {
@@ -416,6 +432,47 @@ export type Database = {
       get_business_ids_for_user: {
         Args: { p_user_id: string }
         Returns: string[]
+      }
+      get_plan_from_table_count: {
+        Args: { p_table_count: number }
+        Returns: string
+      }
+      get_price_from_table_count: {
+        Args: { p_table_count: number }
+        Returns: number
+      }
+      get_active_table_count_for_business: {
+        Args: { p_business_id: string }
+        Returns: number
+      }
+      refresh_business_plan_from_tables: {
+        Args: { p_business_id: string }
+        Returns: void
+      }
+      mark_business_payment_failed: {
+        Args: { p_business_id: string; p_amount?: number }
+        Returns: void
+      }
+      suspend_overdue_businesses: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      reactivate_business_after_payment: {
+        Args: {
+          p_business_id: string
+          p_period_start: string
+          p_period_end: string
+          p_plan: string
+        }
+        Returns: void
+      }
+      business_access_allowed: {
+        Args: {
+          p_account_status: string
+          p_trial_ends_at: string | null
+          p_subscription_status: string
+        }
+        Returns: boolean
       }
     }
   }
