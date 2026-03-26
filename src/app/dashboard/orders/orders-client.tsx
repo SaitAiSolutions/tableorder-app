@@ -1,14 +1,10 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { LiveOrderFeed } from './live-order-feed'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
-import {
-  clearTable,
-  getTablesWithSessions,
-  transferOrder,
-} from '@/lib/actions/tables.actions'
-import type { OrderWithItems, TableWithActiveSession } from '@/types/database.types'
+import { clearTable } from '@/lib/actions/tables.actions'
+import type { OrderWithItems } from '@/types/database.types'
 
 interface OrdersClientProps {
   initialOrders: OrderWithItems[]
@@ -22,25 +18,24 @@ type OrderWithOptionalTable = OrderWithItems & {
   } | null
 }
 
+type FilterKey =
+  | 'all'
+  | 'active'
+  | 'new'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'completed'
+  | 'cancelled'
+
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
   const [orders, setOrders] = useState(initialOrders)
-  const [availableTables, setAvailableTables] = useState<TableWithActiveSession[]>([])
   const [isPending, startTransition] = useTransition()
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('active')
 
   useEffect(() => {
     setOrders(initialOrders)
   }, [initialOrders])
-
-  useEffect(() => {
-    async function loadTables() {
-      const result = await getTablesWithSessions()
-      if (!result.error && result.data) {
-        setAvailableTables(result.data)
-      }
-    }
-
-    loadTables()
-  }, [])
 
   function patchOrder(orderId: string, nextStatus: OrderWithItems['status']) {
     setOrders((prev) =>
@@ -93,7 +88,6 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
 
     startTransition(async () => {
       const result = await clearTable(tableId)
-
       if (!result.error) {
         setOrders((prev) =>
           prev.filter((o) => {
@@ -101,60 +95,96 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
             return current.table?.id !== tableId
           }),
         )
-
-        const tablesResult = await getTablesWithSessions()
-        if (!tablesResult.error && tablesResult.data) {
-          setAvailableTables(tablesResult.data)
-        }
       }
     })
   }
 
-  function handleTransfer(orderId: string, targetTableId: string) {
-    if (!targetTableId) return
+  const counts = useMemo(() => {
+    return {
+      all: orders.length,
+      active: orders.filter(
+        (o) => o.status !== 'completed' && o.status !== 'cancelled',
+      ).length,
+      new: orders.filter((o) => o.status === 'new').length,
+      accepted: orders.filter((o) => o.status === 'accepted').length,
+      preparing: orders.filter((o) => o.status === 'preparing').length,
+      ready: orders.filter((o) => o.status === 'ready').length,
+      completed: orders.filter((o) => o.status === 'completed').length,
+      cancelled: orders.filter((o) => o.status === 'cancelled').length,
+    }
+  }, [orders])
 
-    startTransition(async () => {
-      const result = await transferOrder(orderId, targetTableId)
+  const filteredOrders = useMemo(() => {
+    if (activeFilter === 'all') return orders
 
-      if (!result.error) {
-        const targetTable = availableTables.find((t) => t.id === targetTableId)
+    if (activeFilter === 'active') {
+      return orders.filter(
+        (o) => o.status !== 'completed' && o.status !== 'cancelled',
+      )
+    }
 
-        setOrders((prev) =>
-          prev.map((order) => {
-            if (order.id !== orderId) return order
+    return orders.filter((o) => o.status === activeFilter)
+  }, [orders, activeFilter])
 
-            const current = order as OrderWithOptionalTable
-
-            return {
-              ...order,
-              table: {
-                id: targetTable?.id ?? targetTableId,
-                table_number: targetTable?.table_number ?? current.table?.table_number,
-                name: targetTable?.name ?? null,
-              },
-            }
-          }),
-        )
-
-        const tablesResult = await getTablesWithSessions()
-        if (!tablesResult.error && tablesResult.data) {
-          setAvailableTables(tablesResult.data)
-        }
-      }
-    })
-  }
-
-  const freeTables = availableTables.filter((table) => !table.active_session)
+  const filters: Array<{ key: FilterKey; label: string; count: number }> = [
+    { key: 'active', label: 'Ενεργές', count: counts.active },
+    { key: 'new', label: 'Νέες', count: counts.new },
+    { key: 'accepted', label: 'Accepted', count: counts.accepted },
+    { key: 'preparing', label: 'Preparing', count: counts.preparing },
+    { key: 'ready', label: 'Ready', count: counts.ready },
+    { key: 'completed', label: 'Completed', count: counts.completed },
+    { key: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+    { key: 'all', label: 'Όλες', count: counts.all },
+  ]
 
   return (
-    <LiveOrderFeed
-      initialOrders={orders}
-      availableTables={freeTables}
-      onAdvance={handleAdvance}
-      onCancel={handleCancel}
-      onClearTable={handleClearTable}
-      onTransfer={handleTransfer}
-      pending={isPending}
-    />
+    <div className="space-y-5">
+      <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        <div className="mb-3">
+          <h3 className="text-lg font-semibold text-gray-900">Φίλτρα παραγγελιών</h3>
+          <p className="mt-1 text-sm text-[#7b6657]">
+            Διάλεξε ποιες παραγγελίες θέλεις να βλέπεις.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {filters.map((filter) => {
+            const isActive = activeFilter === filter.key
+
+            return (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setActiveFilter(filter.key)}
+                className={
+                  isActive
+                    ? 'inline-flex items-center gap-2 rounded-full bg-[#1f2937] px-4 py-2 text-sm font-medium text-white'
+                    : 'inline-flex items-center gap-2 rounded-full border border-[#ddd2c7] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] transition hover:bg-[#f6efe8]'
+                }
+              >
+                <span>{filter.label}</span>
+                <span
+                  className={
+                    isActive
+                      ? 'rounded-full bg-white/15 px-2 py-0.5 text-xs text-white'
+                      : 'rounded-full bg-[#f3ece4] px-2 py-0.5 text-xs text-[#6f6156]'
+                  }
+                >
+                  {filter.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <LiveOrderFeed
+        initialOrders={filteredOrders}
+        onAdvance={handleAdvance}
+        onCancel={handleCancel}
+        onClearTable={handleClearTable}
+        pending={isPending}
+      />
+    </div>
   )
 }
