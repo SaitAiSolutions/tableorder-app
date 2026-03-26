@@ -70,6 +70,9 @@ export async function createBusiness(
     return { data: null, error: 'Αυτό το slug χρησιμοποιείται ήδη. Επιλέξτε άλλο.' }
   }
 
+  const now = new Date()
+  const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+
   const { data: business, error: bizError } = await admin
     .from('businesses')
     .insert({
@@ -77,7 +80,11 @@ export async function createBusiness(
       slug,
       currency,
       default_language: 'el',
-    } as never)
+      trial_started_at: now.toISOString(),
+      trial_ends_at: trialEndsAt.toISOString(),
+      subscription_status: 'trialing',
+      subscription_plan: 'trial',
+    })
     .select('id, slug')
     .single()
 
@@ -90,7 +97,7 @@ export async function createBusiness(
       business_id: business.id,
       user_id: user.id,
       role: 'owner',
-    } as never)
+    })
 
   if (memberError) {
     await admin.from('businesses').delete().eq('id', business.id)
@@ -126,7 +133,7 @@ export async function uploadLogo(
   businessId: string,
   formData: FormData,
 ): Promise<ActionResult<string>> {
-  const admin = createAdminClient()
+  const supabase = await createClient()
 
   const file = formData.get('logo') as File | null
 
@@ -138,54 +145,31 @@ export async function uploadLogo(
     return { data: null, error: 'Το αρχείο δεν μπορεί να υπερβαίνει τα 5 MB.' }
   }
 
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/svg+xml',
-  ]
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `${businessId}/logo.${ext}`
 
-  if (!allowedTypes.includes(file.type)) {
-    return {
-      data: null,
-      error: 'Επιτρέπονται μόνο JPG, PNG, WEBP ή SVG αρχεία.',
-    }
-  }
-
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
-  const path = `${businessId}/logo-${Date.now()}.${ext}`
-
-  const { error: uploadError } = await admin.storage
+  const { error: uploadError } = await supabase.storage
     .from('business-assets')
-    .upload(path, file, {
-      upsert: true,
-      contentType: file.type,
-    })
+    .upload(path, file, { upsert: true, contentType: file.type })
 
-  if (uploadError) {
-    return { data: null, error: uploadError.message }
+  if (uploadError) return { data: null, error: uploadError.message }
+
+  const { data: signed, error: urlError } = await supabase.storage
+    .from('business-assets')
+    .createSignedUrl(path, 60 * 60 * 24 * 365)
+
+  if (urlError || !signed?.signedUrl) {
+    return { data: null, error: 'Αποτυχία δημιουργίας URL.' }
   }
 
-  const {
-    data: { publicUrl },
-  } = admin.storage.from('business-assets').getPublicUrl(path)
-
-  if (!publicUrl) {
-    return { data: null, error: 'Αποτυχία δημιουργίας URL λογότυπου.' }
-  }
-
-  const { error: updateError } = await admin
+  const { error: updateError } = await supabase
     .from('businesses')
-    .update({ logo_url: publicUrl } as never)
+    .update({ logo_url: signed.signedUrl } as never)
     .eq('id', businessId)
 
-  if (updateError) {
-    return { data: null, error: updateError.message }
-  }
+  if (updateError) return { data: null, error: updateError.message }
 
   revalidatePath('/dashboard', 'layout')
   revalidatePath('/dashboard/settings')
-  revalidatePath('/onboarding/branding')
-
-  return { data: publicUrl, error: null }
+  return { data: signed.signedUrl, error: null }
 }
