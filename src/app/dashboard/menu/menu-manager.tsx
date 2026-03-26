@@ -13,6 +13,8 @@ import {
   deleteProduct,
   moveCategoryDown,
   moveCategoryUp,
+  moveProductDown,
+  moveProductUp,
   toggleProductAvailability,
   updateCategory,
   updateProduct,
@@ -75,6 +77,14 @@ export function MenuManager({
     setProductSuccess(null)
   }
 
+  function getProductsInSameCategory(product: ProductWithOptions) {
+    return products.filter((p) => p.category_id === product.category_id)
+  }
+
+  function getProductIndexInCategory(product: ProductWithOptions) {
+    return getProductsInSameCategory(product).findIndex((p) => p.id === product.id)
+  }
+
   function handleCreateCategory(formData: FormData) {
     startTransition(async () => {
       setCategoryError(null)
@@ -125,6 +135,8 @@ export function MenuManager({
         return
       }
 
+      const productsInCategory = products.filter((p) => p.category_id === categoryId)
+
       const createResult = await createProduct({
         business_id: businessId,
         category_id: categoryId,
@@ -136,7 +148,7 @@ export function MenuManager({
         price,
         image_url: null,
         is_available: true,
-        sort_order: products.length + 1,
+        sort_order: productsInCategory.length + 1,
       })
 
       if (createResult.error || !createResult.data) {
@@ -211,6 +223,38 @@ export function MenuManager({
           ? 'Το προϊόν είναι πλέον διαθέσιμο.'
           : 'Το προϊόν έγινε μη διαθέσιμο.',
       )
+    })
+  }
+
+  function handleMoveProductUp(product: ProductWithOptions) {
+    startTransition(async () => {
+      setProductError(null)
+      setProductSuccess(null)
+
+      const result = await moveProductUp(product.id)
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setProductSuccess('Η σειρά προϊόντος ενημερώθηκε.')
+    })
+  }
+
+  function handleMoveProductDown(product: ProductWithOptions) {
+    startTransition(async () => {
+      setProductError(null)
+      setProductSuccess(null)
+
+      const result = await moveProductDown(product.id)
+
+      if (result.error) {
+        setProductError(result.error)
+        return
+      }
+
+      setProductSuccess('Η σειρά προϊόντος ενημερώθηκε.')
     })
   }
 
@@ -802,6 +846,9 @@ export function MenuManager({
                     ? product.image_url
                     : null
 
+                const sameCategoryProducts = getProductsInSameCategory(product)
+                const productIndex = getProductIndexInCategory(product)
+
                 return (
                   <div
                     key={product.id}
@@ -966,6 +1013,32 @@ export function MenuManager({
                           <p className="whitespace-nowrap text-sm font-semibold text-gray-900">
                             {formatCurrency(Number(product.price ?? 0), currency)}
                           </p>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-xl"
+                            disabled={productIndex === 0 || isPending}
+                            onClick={() => handleMoveProductUp(product)}
+                          >
+                            ↑ Πάνω
+                          </Button>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-xl"
+                            disabled={
+                              productIndex === sameCategoryProducts.length - 1 || isPending
+                            }
+                            onClick={() => handleMoveProductDown(product)}
+                          >
+                            ↓ Κάτω
+                          </Button>
                         </div>
 
                         <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white p-4">
