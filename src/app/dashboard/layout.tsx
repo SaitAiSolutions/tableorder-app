@@ -79,13 +79,51 @@ export default async function DashboardLayout({
     )
   }
 
+  const showTrialBanner =
+    !trial.isActiveSubscription &&
+    !trial.expired &&
+    typeof trial.daysLeft === 'number'
+
+  const formattedEndDate = formatTrialEndDate(business.trial_ends_at)
+
   return (
     <div className="flex min-h-screen bg-[#f6f3ee]">
       <Sidebar />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <Topbar />
+
         <main className="flex-1 px-3 py-4 sm:px-4 sm:py-5 lg:px-8 lg:py-8">
+          {showTrialBanner ? (
+            <div className="mb-6 rounded-[22px] border border-[#e7d9c9] bg-gradient-to-r from-[#fff7ed] to-[#fffaf4] p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#9a6b3d]">
+                    Free trial
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold tracking-tight text-gray-900 sm:text-xl">
+                    Απομένουν {trial.daysLeft} ημέρες από τη δωρεάν δοκιμή σας
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-[#7b6657]">
+                    {formattedEndDate
+                      ? `Η δοκιμή λήγει στις ${formattedEndDate}.`
+                      : 'Η δοκιμή σας είναι ενεργή.'}{' '}
+                    Σύντομα θα προσθέσουμε αναβάθμιση συνδρομής μέσα από το dashboard.
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap gap-3">
+                  <a
+                    href="/dashboard/settings"
+                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+                  >
+                    Ρυθμίσεις
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {children}
         </main>
       </div>
