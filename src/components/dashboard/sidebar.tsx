@@ -8,6 +8,7 @@ import {
   UtensilsCrossed,
   Settings,
   Table2,
+  CreditCard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -16,6 +17,7 @@ const items = [
   { href: '/dashboard/orders', label: 'Παραγγελίες', icon: ClipboardList },
   { href: '/dashboard/menu', label: 'Μενού', icon: UtensilsCrossed },
   { href: '/dashboard/tables', label: 'Τραπέζια', icon: Table2 },
+  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { href: '/dashboard/settings', label: 'Ρυθμίσεις', icon: Settings },
 ]
 
