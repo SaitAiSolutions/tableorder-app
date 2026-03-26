@@ -1,5 +1,11 @@
 import Link from 'next/link'
-import { CheckCircle2, CreditCard, ShieldCheck, Sparkles } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CreditCard,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react'
 import {
   createStripeCheckoutSession,
   createStripePortalSession,
@@ -50,6 +56,14 @@ const plans = [
   },
 ]
 
+function formatMoney(amount: number, currency = 'EUR') {
+  return new Intl.NumberFormat('el-GR', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amount)
+}
+
 export default async function DashboardBillingPage() {
   const { data: business } = await getCurrentBusiness()
   const { data: tables } = await getTablesWithSessions()
@@ -68,6 +82,18 @@ export default async function DashboardBillingPage() {
   const recommendedPlan = getPlanByTableCount(tableCount)
   const hasStripeCustomer = !!business.stripe_customer_id
   const hasActiveSubscription = business.subscription_status === 'active'
+
+  const outstandingBalance = Number(business.outstanding_balance ?? 0)
+  const hasOutstandingBalance = outstandingBalance > 0
+
+  const isSuspended = business.account_status === 'suspended'
+  const isPastDue =
+    business.subscription_status === 'past_due' ||
+    business.account_status === 'grace_period'
+
+  const gracePeriodEndsAt = business.grace_period_ends_at
+    ? new Date(business.grace_period_ends_at).toLocaleDateString('el-GR')
+    : null
 
   const planLabel =
     business.subscription_status === 'active'
@@ -92,6 +118,54 @@ export default async function DashboardBillingPage() {
           πολιτική χρέωσης της εφαρμογής.
         </p>
       </div>
+
+      {hasOutstandingBalance ? (
+        <div className="rounded-[24px] border border-[#f3d2bf] bg-[#fff8f3] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fde6d8] text-[#b45309]">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium uppercase tracking-[0.14em] text-[#b45309]">
+                Υπάρχει οφειλή
+              </p>
+              <h3 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900">
+                Οφειλή {formatMoney(outstandingBalance, business.currency ?? 'EUR')}
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-[#7b6657]">
+                Υπάρχουν ανοιχτά invoices στο Stripe. Για να συνεχιστεί κανονικά η
+                πρόσβαση, θα πρέπει να εξοφληθούν μέσα από το Customer Portal.
+              </p>
+
+              {isPastDue && gracePeriodEndsAt ? (
+                <p className="mt-2 text-sm font-medium text-[#9a3412]">
+                  Προθεσμία πληρωμής έως: {gracePeriodEndsAt}
+                </p>
+              ) : null}
+
+              {isSuspended ? (
+                <p className="mt-2 text-sm font-medium text-red-700">
+                  Ο λογαριασμός είναι προσωρινά ανεσταλμένος μέχρι να εξοφληθούν οι
+                  οφειλές.
+                </p>
+              ) : null}
+
+              <div className="mt-4">
+                <form action={createStripePortalSession}>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                  >
+                    Άνοιγμα Customer Portal για πληρωμή
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-4">
         <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
@@ -277,6 +351,17 @@ export default async function DashboardBillingPage() {
             τραπεζιών που έχετε δημιουργήσει αυτή τη στιγμή.
           </p>
 
+          {hasOutstandingBalance ? (
+            <div className="mt-4 rounded-2xl border border-[#f3d2bf] bg-white px-4 py-3">
+              <p className="text-sm font-medium text-[#9a3412]">
+                Εκκρεμεί οφειλή {formatMoney(outstandingBalance, business.currency ?? 'EUR')}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#8b715d]">
+                Η επανενεργοποίηση γίνεται αφού εξοφληθούν όλα τα ανοιχτά invoices.
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-6 space-y-3">
             {hasActiveSubscription ? (
               <form action={createStripePortalSession}>
@@ -319,7 +404,7 @@ export default async function DashboardBillingPage() {
 
           <p className="mt-4 text-xs leading-5 text-[#8b715d]">
             Με το Stripe Customer Portal ο πελάτης μπορεί να ενημερώνει κάρτα,
-            να βλέπει billing details και να διαχειρίζεται τη συνδρομή του.
+            να βλέπει invoices και να εξοφλεί τυχόν οφειλές.
           </p>
         </div>
       </div>
