@@ -13,6 +13,7 @@ function ordersReducer(state: OrderWithItems[], action: OrdersAction): OrderWith
   switch (action.type) {
     case 'reset':
       return action.payload
+
     case 'upsert': {
       const existingIndex = state.findIndex((o) => o.id === action.payload.id)
 
@@ -24,6 +25,7 @@ function ordersReducer(state: OrderWithItems[], action: OrdersAction): OrderWith
       next[existingIndex] = action.payload
       return next
     }
+
     default:
       return state
   }
@@ -45,30 +47,48 @@ export function useRealtimeOrders(initialOrders: OrderWithItems[]) {
     const supabase = createClient()
 
     const channel = supabase
-      .channel('orders-live-feed')
+      .channel('dashboard-orders-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => refresh(),
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        () => {
+          refresh()
+        },
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items' },
-        () => refresh(),
+        {
+          event: '*',
+          schema: 'public',
+          table: 'order_items',
+        },
+        () => {
+          refresh()
+        },
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_item_options' },
-        () => refresh(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tables' },
-        () => refresh(),
+        {
+          event: '*',
+          schema: 'public',
+          table: 'order_item_options',
+        },
+        () => {
+          refresh()
+        },
       )
       .subscribe()
 
+    const interval = window.setInterval(() => {
+      refresh()
+    }, 10000)
+
     return () => {
+      window.clearInterval(interval)
       supabase.removeChannel(channel)
     }
   }, [refresh])
@@ -87,7 +107,7 @@ export function useRealtimeTables(_initialTables: TableWithActiveSession[]) {
     const supabase = createClient()
 
     const channel = supabase
-      .channel('dashboard-realtime')
+      .channel('dashboard-tables-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
@@ -98,14 +118,14 @@ export function useRealtimeTables(_initialTables: TableWithActiveSession[]) {
         { event: '*', schema: 'public', table: 'table_sessions' },
         () => refresh(),
       )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tables' },
-        () => refresh(),
-      )
       .subscribe()
 
+    const interval = window.setInterval(() => {
+      refresh()
+    }, 10000)
+
     return () => {
+      window.clearInterval(interval)
       supabase.removeChannel(channel)
     }
   }, [refresh])
