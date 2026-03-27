@@ -1,13 +1,5 @@
 import Link from 'next/link'
-import {
-  ArrowRight,
-  CheckCircle2,
-  ClipboardList,
-  CreditCard,
-  Table2,
-  UtensilsCrossed,
-  Wallet,
-} from 'lucide-react'
+import { ArrowRight, ClipboardList, Table2, Wallet } from 'lucide-react'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import {
   getCategoriesForDashboard,
@@ -107,29 +99,8 @@ export default async function DashboardHomePage() {
   const hasMenu = totalProducts > 0 || totalCategories > 0
   const hasSubscription = business.subscription_status === 'active'
 
-  const setupSteps = [
-    {
-      label: 'Έχεις δημιουργήσει τραπέζια',
-      done: hasTables,
-      href: '/dashboard/tables',
-      cta: hasTables ? 'Δες τραπέζια' : 'Πρόσθεσε τραπέζια',
-    },
-    {
-      label: 'Έχεις στήσει το menu',
-      done: hasMenu,
-      href: '/dashboard/menu',
-      cta: hasMenu ? 'Δες menu' : 'Στήσε menu',
-    },
-    {
-      label: 'Έχεις ενεργή συνδρομή',
-      done: hasSubscription,
-      href: '/dashboard/billing',
-      cta: hasSubscription ? 'Δες billing' : 'Ενεργοποίησε συνδρομή',
-    },
-  ]
-
-  const completedSteps = setupSteps.filter((step) => step.done).length
-  const progressPercentage = Math.round((completedSteps / setupSteps.length) * 100)
+  const completedSteps = [hasTables, hasMenu, hasSubscription].filter(Boolean).length
+  const progressPercentage = Math.round((completedSteps / 3) * 100)
 
   const nextAction = !hasTables
     ? {
@@ -209,44 +180,36 @@ export default async function DashboardHomePage() {
               <p className="text-sm font-medium uppercase tracking-[0.16em] text-white/75">
                 Setup progress
               </p>
+
               <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-white/15">
                 <div
                   className="h-full rounded-full bg-white"
                   style={{ width: `${progressPercentage}%` }}
                 />
               </div>
+
               <p className="mt-3 text-sm text-white/85">
-                Ολοκληρώθηκαν {completedSteps} από {setupSteps.length} βασικά βήματα.
+                Ολοκληρώθηκαν {completedSteps} από 3 βασικά βήματα.
               </p>
 
               <div className="mt-4 space-y-3">
-                {setupSteps.map((step) => (
-                  <div
-                    key={step.label}
-                    className="flex items-start justify-between gap-3 rounded-2xl bg-white/10 px-4 py-3"
-                  >
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2
-                        className={`mt-0.5 h-4 w-4 shrink-0 ${
-                          step.done ? 'text-white' : 'text-white/45'
-                        }`}
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-white">{step.label}</p>
-                        <p className="mt-1 text-xs text-white/70">
-                          {step.done ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
-                        </p>
-                      </div>
-                    </div>
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                  <p className="text-sm font-medium text-white">
+                    Τραπέζια: {hasTables ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                  </p>
+                </div>
 
-                    <Link
-                      href={step.href}
-                      className="shrink-0 text-xs font-medium text-white underline-offset-4 hover:underline"
-                    >
-                      {step.cta}
-                    </Link>
-                  </div>
-                ))}
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                  <p className="text-sm font-medium text-white">
+                    Menu: {hasMenu ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                  <p className="text-sm font-medium text-white">
+                    Συνδρομή: {hasSubscription ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -286,7 +249,7 @@ export default async function DashboardHomePage() {
 
         <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
-            <UtensilsCrossed className="h-5 w-5" />
+            <ClipboardList className="h-5 w-5" />
           </div>
           <p className="text-sm text-[#7b6657]">Προϊόντα στο menu</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
@@ -359,7 +322,7 @@ export default async function DashboardHomePage() {
                     Κατηγορίες, προϊόντα και επιλογές.
                   </p>
                 </div>
-                <UtensilsCrossed className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+                <ArrowRight className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
               </div>
             </Link>
 
@@ -393,7 +356,7 @@ export default async function DashboardHomePage() {
                     Δες trial, συνδρομή και τιμολόγηση.
                   </p>
                 </div>
-                <CreditCard className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+                <ArrowRight className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
               </div>
             </Link>
           </div>
