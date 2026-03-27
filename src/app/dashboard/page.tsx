@@ -1,5 +1,12 @@
 import Link from 'next/link'
-import { ArrowRight, ClipboardList, Table2, Wallet } from 'lucide-react'
+import {
+  ArrowRight,
+  ClipboardList,
+  CreditCard,
+  Table2,
+  UtensilsCrossed,
+  Wallet,
+} from 'lucide-react'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import {
   getCategoriesForDashboard,
@@ -73,11 +80,18 @@ export default async function DashboardHomePage() {
   const safeCategories = categories ?? []
   const safeProducts = products ?? []
 
-  const activeOrders = safeOrders.filter(
+  const activeOrdersList = safeOrders.filter(
     (o) => o.status !== 'completed' && o.status !== 'cancelled',
-  ).length
+  )
 
-  const occupiedTables = safeTables.filter((t) => !!t.active_session).length
+  const activeOrders = activeOrdersList.length
+
+  const occupiedTables = safeTables.filter((table) => {
+    const sessionOrders = table.active_session?.orders ?? []
+    return sessionOrders.some(
+      (order) => order.status !== 'completed' && order.status !== 'cancelled',
+    )
+  }).length
 
   const todayRevenue = safeOrders
     .filter((o) => {
@@ -146,14 +160,16 @@ export default async function DashboardHomePage() {
 
       <div className="overflow-hidden rounded-[24px] border border-[#ebe5dd] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
         <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-7 text-white sm:px-6 sm:py-8 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/70">
                 Overview
               </p>
+
               <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
                 {business.name ?? 'Dashboard'}
               </h2>
+
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 lg:text-base">
                 Επισκόπηση επιχείρησης, παραγγελιών, menu και πληρότητας τραπεζιών
                 σε ένα σημείο.
@@ -161,10 +177,10 @@ export default async function DashboardHomePage() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  href={nextAction.href}
+                  href="/dashboard/orders"
                   className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#1f2937] hover:bg-[#f5efe7]"
                 >
-                  {nextAction.cta}
+                  Δες παραγγελίες
                 </Link>
 
                 <Link
@@ -249,7 +265,7 @@ export default async function DashboardHomePage() {
 
         <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
-            <ClipboardList className="h-5 w-5" />
+            <UtensilsCrossed className="h-5 w-5" />
           </div>
           <p className="text-sm text-[#7b6657]">Προϊόντα στο menu</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
@@ -322,7 +338,7 @@ export default async function DashboardHomePage() {
                     Κατηγορίες, προϊόντα και επιλογές.
                   </p>
                 </div>
-                <ArrowRight className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+                <UtensilsCrossed className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
               </div>
             </Link>
 
@@ -356,7 +372,7 @@ export default async function DashboardHomePage() {
                     Δες trial, συνδρομή και τιμολόγηση.
                   </p>
                 </div>
-                <ArrowRight className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+                <CreditCard className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
               </div>
             </Link>
           </div>

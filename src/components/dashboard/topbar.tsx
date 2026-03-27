@@ -1,10 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
+'use client'
 
-export async function Topbar() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Home } from 'lucide-react'
+
+export function Topbar() {
+  const pathname = usePathname()
+  const isDashboardHome = pathname === '/dashboard'
 
   return (
     <header className="border-b border-[#ebe5dd] bg-[#fcfaf7]/90 backdrop-blur">
@@ -18,17 +20,16 @@ export async function Topbar() {
           </h1>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#ebe5dd] bg-white px-3 py-2 shadow-sm sm:ml-auto">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-gray-900">
-              {user?.email ?? 'Owner'}
-            </p>
-            <p className="text-xs text-[#7b6657]">Διαχειριστής</p>
-          </div>
-
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#1f2937] text-sm font-semibold text-white">
-            {(user?.email?.[0] ?? 'O').toUpperCase()}
-          </div>
+        <div className="flex items-center gap-3 sm:ml-auto">
+          {!isDashboardHome ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2.5 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+            >
+              <Home className="h-4 w-4" />
+              Αρχική Dashboard
+            </Link>
+          ) : null}
         </div>
       </div>
     </header>
