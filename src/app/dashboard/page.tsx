@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import {
-  ArrowRight,
   ClipboardList,
   CreditCard,
   Table2,
@@ -16,6 +15,7 @@ import { getOrdersByBusiness } from '@/lib/actions/orders.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import { getTrialStatus } from '@/lib/utils/trial'
+import { DashboardLiveOverview } from './dashboard-live-overview'
 
 export default async function DashboardHomePage() {
   const { data: business } = await getCurrentBusiness()
@@ -174,8 +174,6 @@ export default async function DashboardHomePage() {
                 Επισκόπηση επιχείρησης, παραγγελιών, menu και πληρότητας τραπεζιών
                 σε ένα σημείο.
               </p>
-
-             
             </div>
 
             <div className="rounded-[24px] bg-white/10 p-5 backdrop-blur-sm">
@@ -261,32 +259,11 @@ export default async function DashboardHomePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-                Next step
-              </p>
-              <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-                {nextAction.title}
-              </h3>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#7b6657]">
-                {nextAction.description}
-              </p>
-            </div>
-
-            <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#8b715d]" />
-          </div>
-
-          <div className="mt-6">
-            <Link
-              href={nextAction.href}
-              className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
-            >
-              {nextAction.cta}
-            </Link>
-          </div>
-        </div>
+        <DashboardLiveOverview
+          initialOrders={safeOrders}
+          currency={business.currency ?? 'EUR'}
+          nextAction={nextAction}
+        />
 
         <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">

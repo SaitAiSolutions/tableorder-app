@@ -284,13 +284,6 @@ export function CustomerApp({ data }: CustomerAppProps) {
           </div>
         ) : null}
 
-<div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-  DEBUG business_id: {data.business.id} <br />
-  DEBUG business_name: {data.business.name} <br />
-  DEBUG table_id: {data.table.id} <br />
-  DEBUG table_number: {data.table.table_number}
-</div>
-
         <div className="rounded-[24px] border border-black/5 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5">
           <CategoryNav
             categories={data.categories}

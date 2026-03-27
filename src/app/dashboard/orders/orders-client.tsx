@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
 import { clearTable } from '@/lib/actions/tables.actions'
+import { useRealtimeOrders } from '@/hooks/use-realtime-orders'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import type { OrderWithItems } from '@/types/database.types'
 
@@ -85,14 +86,16 @@ function getElapsedLabel(createdAt: string) {
 }
 
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
-  const [orders, setOrders] = useState(initialOrders)
+  const { orders: realtimeOrders } = useRealtimeOrders(initialOrders)
+
+  const [orders, setOrders] = useState(realtimeOrders)
   const [isPending, startTransition] = useTransition()
   const [activeFilter, setActiveFilter] = useState<FilterKey>('active')
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    setOrders(initialOrders)
-  }, [initialOrders])
+    setOrders(realtimeOrders)
+  }, [realtimeOrders])
 
   function patchOrder(orderId: string, nextStatus: OrderWithItems['status']) {
     setOrders((prev) =>
