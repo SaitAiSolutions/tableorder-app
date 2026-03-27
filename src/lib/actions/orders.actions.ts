@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { isTrialExpired } from '@/lib/utils/trial'
 import type {
   OrderStatus,
@@ -42,16 +43,29 @@ async function resolveCurrentBusinessId() {
 export async function placeOrder(
   params: PlaceOrderParams,
 ): Promise<ActionResult<PlaceOrderResult>> {
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
-  const { data: businessRow, error: businessError } = await supabase
+  const { data: businessRow, error: businessError } = await admin
     .from('businesses')
-    .select('id, account_status, trial_ends_at, subscription_status')
+    .select('id, account_status, trial_ends_at, subscription_status, is_active')
     .eq('id', params.p_business_id)
+    .eq('is_active', true)
     .single()
 
   if (businessError || !businessRow) {
     return { data: null, error: 'Η επιχείρηση δεν είναι διαθέσιμη.' }
+  }
+
+  const { data: tableRow, error: tableError } = await admin
+    .from('tables')
+    .select('id, business_id, is_active')
+    .eq('id', params.p_table_id)
+    .eq('business_id', params.p_business_id)
+    .eq('is_active', true)
+    .single()
+
+  if (tableError || !tableRow) {
+    return { data: null, error: 'Το τραπέζι δεν είναι διαθέσιμο.' }
   }
 
   const accountStatus = String(businessRow.account_status ?? '')
@@ -63,7 +77,10 @@ export async function placeOrder(
 
   if (accountStatus === 'suspended' || accountStatus === 'cancelled') {
     canUse = false
-  } else if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
+  } else if (
+    subscriptionStatus === 'active' ||
+    subscriptionStatus === 'past_due'
+  ) {
     canUse = true
   } else if (subscriptionStatus === 'trialing') {
     canUse = !trialExpired
@@ -72,17 +89,24 @@ export async function placeOrder(
   }
 
   if (!canUse) {
-  return {
-    data: null,
-    error: `DEBUG availability | account_status=${accountStatus || 'null'} | subscription_status=${subscriptionStatus || 'null'} | trial_ends_at=${trialEndsAt || 'null'} | trial_expired=${String(trialExpired)}`,
-  }
-}
+    if (accountStatus === 'suspended') {
+      return {
+        data: null,
+        error: 'Η επιχείρηση δεν δέχεται παραγγελίες αυτή τη στιγμή.',
+      }
+    }
 
-  await supabase.rpc('set_current_business' as never, {
+    return {
+      data: null,
+      error: 'Η επιχείρηση δεν είναι διαθέσιμη αυτή τη στιγμή.',
+    }
+  }
+
+  await admin.rpc('set_current_business' as never, {
     p_id: params.p_business_id,
   } as never)
 
-  const { data, error } = await supabase.rpc('place_order' as never, {
+  const { data, error } = await admin.rpc('place_order' as never, {
     p_business_id: params.p_business_id,
     p_table_id: params.p_table_id,
     p_notes: params.p_notes ?? null,
@@ -115,7 +139,10 @@ export async function placeOrder(
       return { data: null, error: 'Το καλάθι είναι άδειο.' }
     }
 
-    return { data: null, error: 'Αποτυχία υποβολής παραγγελίας. Δοκιμάστε ξανά.' }
+    return {
+      data: null,
+      error: `RPC error: ${error.message}`,
+    }
   }
 
   revalidatePath('/dashboard/orders')
