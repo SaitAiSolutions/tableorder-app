@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { canBusinessUseApp } from '@/lib/utils/trial'
+import { isTrialExpired } from '@/lib/utils/trial'
 import type {
   OrderStatus,
   OrderWithItems,
@@ -54,14 +54,25 @@ export async function placeOrder(
     return { data: null, error: 'Η επιχείρηση δεν είναι διαθέσιμη.' }
   }
 
-  const canUse = canBusinessUseApp({
-  account_status: businessRow.account_status,
-  subscription_status: businessRow.subscription_status,
-  trial_ends_at: businessRow.trial_ends_at,
-})
+  const accountStatus = String(businessRow.account_status ?? '')
+  const subscriptionStatus = String(businessRow.subscription_status ?? '')
+  const trialEndsAt = businessRow.trial_ends_at as string | null | undefined
+  const trialExpired = isTrialExpired(trialEndsAt)
+
+  let canUse = false
+
+  if (accountStatus === 'suspended' || accountStatus === 'cancelled') {
+    canUse = false
+  } else if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
+    canUse = true
+  } else if (subscriptionStatus === 'trialing') {
+    canUse = !trialExpired
+  } else {
+    canUse = !trialExpired
+  }
 
   if (!canUse) {
-    if (businessRow.account_status === 'suspended') {
+    if (accountStatus === 'suspended') {
       return {
         data: null,
         error: 'Η επιχείρηση δεν δέχεται παραγγελίες αυτή τη στιγμή.',
