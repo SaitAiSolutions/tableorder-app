@@ -1,7 +1,6 @@
 'use client'
 
 import { formatCurrency } from '@/lib/utils/format-currency'
-import { Button } from '@/components/ui/button'
 import type { CartItem } from '@/types/database.types'
 
 interface CartSheetProps {
@@ -13,7 +12,7 @@ interface CartSheetProps {
   onClose: () => void
   onIncrease: (key: string) => void
   onDecrease: (key: string) => void
-  onSubmit: () => void
+  onSubmit: () => void | Promise<void>
   submitting?: boolean
 }
 
@@ -33,6 +32,12 @@ export function CartSheet({
 
   const totalAmount = cart.reduce((sum, item) => sum + item.line_total, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+  async function handleSubmitClick() {
+    if (submitting) return
+    if (cart.length === 0) return
+    await onSubmit()
+  }
 
   return (
     <div className="fixed inset-0 z-50">
@@ -70,7 +75,8 @@ export function CartSheet({
           ) : (
             <>
               <div className="mb-4 rounded-[22px] border border-[#eee5dc] bg-white px-4 py-3 text-sm text-[#6b5a4f]">
-                <span className="font-semibold text-gray-900">{totalItems}</span> προϊόντα στο καλάθι
+                <span className="font-semibold text-gray-900">{totalItems}</span>{' '}
+                προϊόντα στο καλάθι
               </div>
 
               <div className="max-h-[40vh] space-y-3 overflow-y-auto pr-1">
@@ -160,13 +166,14 @@ export function CartSheet({
                   </div>
                 </div>
 
-                <Button
-                  className="w-full rounded-2xl bg-[#1f2937] py-3 text-white hover:bg-[#111827]"
-                  onClick={onSubmit}
-                  loading={submitting}
+                <button
+                  type="button"
+                  onClick={handleSubmitClick}
+                  disabled={submitting || cart.length === 0}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Ολοκλήρωση παραγγελίας
-                </Button>
+                  {submitting ? 'Υποβολή...' : 'Ολοκλήρωση παραγγελίας'}
+                </button>
               </div>
             </>
           )}
