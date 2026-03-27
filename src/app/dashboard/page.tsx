@@ -175,21 +175,7 @@ export default async function DashboardHomePage() {
                 σε ένα σημείο.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/dashboard/orders"
-                  className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#1f2937] hover:bg-[#f5efe7]"
-                >
-                  Δες παραγγελίες
-                </Link>
-
-                <Link
-                  href="/dashboard/billing"
-                  className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15"
-                >
-                  Billing
-                </Link>
-              </div>
+             
             </div>
 
             <div className="rounded-[24px] bg-white/10 p-5 backdrop-blur-sm">
