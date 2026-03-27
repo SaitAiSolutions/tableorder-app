@@ -32,3 +32,23 @@ export function getTrialStatus(
     isActiveSubscription,
   }
 }
+
+export function canBusinessUseApp(input?: {
+  account_status?: string | null
+  subscription_status?: string | null
+  trial_ends_at?: string | null
+}) {
+  if (!input) return false
+
+  if (input.account_status === 'suspended') return false
+  if (input.account_status === 'cancelled') return false
+
+  if (input.subscription_status === 'active') return true
+  if (input.subscription_status === 'past_due') return true
+
+  if (input.subscription_status === 'trialing') {
+    return !isTrialExpired(input.trial_ends_at)
+  }
+
+  return !isTrialExpired(input.trial_ends_at)
+}
