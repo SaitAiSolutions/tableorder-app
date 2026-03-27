@@ -24,6 +24,26 @@ type OrderWithOptionalTable = OrderWithItems & {
   } | null
 }
 
+function getElapsedLabel(createdAt: string) {
+  const created = new Date(createdAt).getTime()
+  const now = Date.now()
+  const diffMinutes = Math.max(1, Math.floor((now - created) / (1000 * 60)))
+
+  if (diffMinutes < 60) return `${diffMinutes} λεπτά πριν`
+
+  const hours = Math.floor(diffMinutes / 60)
+  const minutes = diffMinutes % 60
+
+  if (hours < 24) {
+    return minutes > 0
+      ? `${hours} ώρ. ${minutes} λ. πριν`
+      : `${hours} ώρες πριν`
+  }
+
+  const days = Math.floor(hours / 24)
+  return `${days} ημέρ. πριν`
+}
+
 export function OrderCard({
   order,
   availableTables = [],
@@ -48,6 +68,12 @@ export function OrderCard({
     return availableTables.filter((table) => table.id !== safeOrder.table?.id)
   }, [availableTables, safeOrder.table?.id])
 
+  const totalItems =
+    order.order_items?.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0) ?? 0
+
+  const createdAtLabel = new Date(order.created_at).toLocaleString('el-GR')
+  const elapsedLabel = getElapsedLabel(order.created_at)
+
   function handleTransferSubmit() {
     if (!targetTableId) return
     onTransfer?.(order.id, targetTableId)
@@ -58,16 +84,49 @@ export function OrderCard({
   return (
     <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
       <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-            {tableSubtitle}
-          </h3>
-          <p className="mt-1 text-sm text-[#7b6657]">
-            {new Date(order.created_at).toLocaleString('el-GR')}
-          </p>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-xl font-semibold tracking-tight text-gray-900">
+              {tableSubtitle}
+            </h3>
+
+            <span className="rounded-full bg-[#f5efe7] px-2.5 py-1 text-[11px] font-medium text-[#7b6657]">
+              #{order.id.slice(0, 8)}
+            </span>
+          </div>
+
+          <p className="mt-2 text-sm text-[#7b6657]">{createdAtLabel}</p>
+          <p className="mt-1 text-xs text-[#8b715d]">{elapsedLabel}</p>
         </div>
 
         <Badge className={meta.badge}>{meta.label_el}</Badge>
+      </div>
+
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+            Είδη
+          </p>
+          <p className="mt-2 text-xl font-semibold text-gray-900">{totalItems}</p>
+        </div>
+
+        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+            Γραμμές
+          </p>
+          <p className="mt-2 text-xl font-semibold text-gray-900">
+            {order.order_items?.length ?? 0}
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+            Σύνολο
+          </p>
+          <p className="mt-2 text-xl font-semibold text-gray-900">
+            {formatCurrency(order.total_amount)}
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -76,34 +135,37 @@ export function OrderCard({
             key={item.id}
             className="rounded-2xl border border-[#f0e8df] bg-[#faf7f2] px-4 py-3"
           >
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm font-medium text-gray-900">
-                {item.quantity}× {item.product_name_snapshot_el}
-              </p>
-              <p className="text-sm font-semibold text-gray-900">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">
+                  {item.quantity}× {item.product_name_snapshot_el}
+                </p>
+
+                {item.order_item_options && item.order_item_options.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {item.order_item_options.map((option) => (
+                      <span
+                        key={option.id}
+                        className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
+                      >
+                        {option.option_group_name_el}: {option.option_choice_name_el}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <p className="shrink-0 text-sm font-semibold text-gray-900">
                 {formatCurrency(item.line_total)}
               </p>
             </div>
-
-            {item.order_item_options && item.order_item_options.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {item.order_item_options.map((option) => (
-                  <span
-                    key={option.id}
-                    className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
-                  >
-                    {option.option_group_name_el}: {option.option_choice_name_el}
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         ))}
       </div>
 
       {order.notes ? (
         <div className="mt-4 rounded-2xl border border-dashed border-[#e6dcd1] bg-[#fffdfb] px-4 py-3 text-sm text-[#6f6156]">
-          Σημείωση: {order.notes}
+          <span className="font-medium text-gray-900">Σημείωση:</span> {order.notes}
         </div>
       ) : null}
 
@@ -154,25 +216,18 @@ export function OrderCard({
         </div>
       ) : null}
 
-      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-lg font-semibold text-gray-900">
-          Σύνολο: {formatCurrency(order.total_amount)}
-        </p>
+      <div className="mt-5 flex flex-col gap-3">
+        {order.status !== 'completed' && order.status !== 'cancelled' && meta.action_el ? (
+          <Button
+            type="button"
+            className="rounded-2xl bg-[#1f2937] text-white hover:bg-[#111827]"
+            onClick={() => onAdvance?.(order.id)}
+          >
+            {meta.action_el}
+          </Button>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
-          {order.status !== 'completed' &&
-          order.status !== 'cancelled' &&
-          meta.action_el ? (
-            <Button
-              type="button"
-              size="sm"
-              className="rounded-xl bg-[#1f2937] text-white hover:bg-[#111827]"
-              onClick={() => onAdvance?.(order.id)}
-            >
-              {meta.action_el}
-            </Button>
-          ) : null}
-
           {order.status !== 'completed' && order.status !== 'cancelled' ? (
             <Button
               type="button"
