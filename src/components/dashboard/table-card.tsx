@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useMemo, useState, useTransition } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,9 +17,15 @@ import type { TableWithActiveSession } from '@/types/database.types'
 
 interface TableCardProps {
   table: TableWithActiveSession
+  businessSlug: string
+  currency: string
 }
 
-export function TableCard({ table }: TableCardProps) {
+export function TableCard({
+  table,
+  businessSlug,
+  currency,
+}: TableCardProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -33,6 +41,14 @@ export function TableCard({ table }: TableCardProps) {
     ).length ?? 0
 
   const total = table.active_session?.session_total ?? 0
+
+  const customerMenuUrl = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/menu/${businessSlug}/${table.id}`
+    }
+
+    return `/menu/${businessSlug}/${table.id}`
+  }, [businessSlug, table.id])
 
   function handleClear() {
     const confirmed = window.confirm(
@@ -107,6 +123,40 @@ export function TableCard({ table }: TableCardProps) {
 
       setSuccess('Το τραπέζι διαγράφηκε.')
     })
+  }
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(customerMenuUrl)
+      setError(null)
+      setSuccess('Το link του QR αντιγράφηκε.')
+    } catch {
+      setError('Δεν έγινε αντιγραφή του link.')
+    }
+  }
+
+  function handleDownloadQr() {
+    const svg = document.getElementById(`qr-${table.id}`)
+    if (!svg) {
+      setError('Δεν βρέθηκε το QR για λήψη.')
+      return
+    }
+
+    const serializer = new XMLSerializer()
+    const svgString = serializer.serializeToString(svg)
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `table-${table.table_number}-qr.svg`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    setError(null)
+    setSuccess('Το QR κατέβηκε.')
   }
 
   function handleCancelEdit() {
@@ -191,10 +241,60 @@ export function TableCard({ table }: TableCardProps) {
             Τρέχον σύνολο
           </p>
           <p className="mt-2 text-2xl font-semibold text-gray-900">
-            {formatCurrency(total)}
+            {formatCurrency(total, currency)}
           </p>
         </div>
       </div>
+
+      {!isEditing ? (
+        <div className="mt-4 rounded-[20px] border border-[#e8ddd2] bg-[#fcfaf7] p-4">
+          <div className="flex items-start gap-4">
+            <div className="shrink-0 rounded-2xl bg-white p-3 shadow-sm">
+              <QRCodeSVG
+                id={`qr-${table.id}`}
+                value={customerMenuUrl}
+                size={110}
+                includeMargin
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-gray-900">
+                QR για customer menu
+              </p>
+              <p className="mt-1 break-all text-xs leading-5 text-[#7b6657]">
+                {customerMenuUrl}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href={customerMenuUrl}
+                  target="_blank"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                >
+                  Άνοιγμα menu
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                >
+                  Αντιγραφή link
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadQr}
+                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                >
+                  Λήψη QR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {isEditing ? (

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import {
   createTablesBatch,
   getTablesWithSessions,
@@ -60,6 +61,9 @@ export default async function DashboardTablesPage({
       )}`,
     )
   }
+
+  const { data: business } = await getCurrentBusiness()
+  if (!business) return null
 
   const { data: tables } = await getTablesWithSessions()
   const safeTables = tables ?? []
@@ -142,7 +146,12 @@ export default async function DashboardTablesPage({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {safeTables.map((table) => (
-            <TableCard key={table.id} table={table} />
+            <TableCard
+              key={table.id}
+              table={table}
+              businessSlug={business.slug}
+              currency={business.currency}
+            />
           ))}
         </div>
       )}
