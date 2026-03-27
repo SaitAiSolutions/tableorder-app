@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { LiveOrderFeed } from './live-order-feed'
+import LiveOrderFeed from './live-order-feed'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
 import { clearTable } from '@/lib/actions/tables.actions'
 import type { OrderWithItems } from '@/types/database.types'

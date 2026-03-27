@@ -15,7 +15,7 @@ interface LiveOrderFeedProps {
   pending?: boolean
 }
 
-export function LiveOrderFeed({
+export default function LiveOrderFeed({
   initialOrders,
   availableTables = [],
   onAdvance,
