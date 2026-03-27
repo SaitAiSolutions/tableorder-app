@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import {
@@ -70,16 +71,27 @@ export default async function DashboardTablesPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#8b715d]">
-          Floor overview
-        </p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
-          Τραπέζια
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Παρακολούθηση κατάστασης και ενεργών συνεδριών ανά τραπέζι.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#8b715d]">
+            Floor overview
+          </p>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-gray-900">
+            Τραπέζια
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#7b6657]">
+            Παρακολούθηση κατάστασης και ενεργών συνεδριών ανά τραπέζι.
+          </p>
+        </div>
+
+        {safeTables.length > 0 ? (
+          <Link
+            href="/dashboard/tables/print"
+            className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+          >
+            Εκτύπωση όλων των QR
+          </Link>
+        ) : null}
       </div>
 
       <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
