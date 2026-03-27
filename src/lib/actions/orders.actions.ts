@@ -72,18 +72,11 @@ export async function placeOrder(
   }
 
   if (!canUse) {
-    if (accountStatus === 'suspended') {
-      return {
-        data: null,
-        error: 'Η επιχείρηση δεν δέχεται παραγγελίες αυτή τη στιγμή.',
-      }
-    }
-
-    return {
-      data: null,
-      error: 'Η επιχείρηση δεν είναι διαθέσιμη αυτή τη στιγμή.',
-    }
+  return {
+    data: null,
+    error: `DEBUG availability | account_status=${accountStatus || 'null'} | subscription_status=${subscriptionStatus || 'null'} | trial_ends_at=${trialEndsAt || 'null'} | trial_expired=${String(trialExpired)}`,
   }
+}
 
   await supabase.rpc('set_current_business' as never, {
     p_id: params.p_business_id,
