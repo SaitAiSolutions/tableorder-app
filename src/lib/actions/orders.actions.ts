@@ -54,11 +54,11 @@ export async function placeOrder(
     return { data: null, error: 'Η επιχείρηση δεν είναι διαθέσιμη.' }
   }
 
-  const canUse = canBusinessUseApp(
-    businessRow.account_status,
-    businessRow.trial_ends_at,
-    businessRow.subscription_status,
-  )
+  const canUse = canBusinessUseApp({
+  account_status: businessRow.account_status,
+  subscription_status: businessRow.subscription_status,
+  trial_ends_at: businessRow.trial_ends_at,
+})
 
   if (!canUse) {
     if (businessRow.account_status === 'suspended') {
