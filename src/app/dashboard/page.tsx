@@ -144,7 +144,7 @@ export default async function DashboardHomePage() {
           }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-5">
       {!trial.isActiveSubscription && typeof trial.daysLeft === 'number' ? (
         <div className="rounded-[22px] border border-[#e8ddd2] bg-[#fcfaf7] px-5 py-4 text-sm text-[#6f6156] shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
           Απομένουν{' '}
@@ -154,29 +154,29 @@ export default async function DashboardHomePage() {
       ) : null}
 
       <div className="overflow-hidden rounded-[24px] border border-[#ebe5dd] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
-        <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-7 text-white sm:px-6 sm:py-8 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+        <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-5 text-white sm:px-6 sm:py-6 lg:px-7">
+          <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/70">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/70">
                 Overview
               </p>
 
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
                 {business.name ?? 'Dashboard'}
               </h2>
 
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 lg:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80">
                 Επισκόπηση επιχείρησης, παραγγελιών, menu και πληρότητας τραπεζιών
                 σε ένα σημείο.
               </p>
             </div>
 
-            <div className="rounded-[24px] bg-white/10 p-5 backdrop-blur-sm">
-              <p className="text-sm font-medium uppercase tracking-[0.16em] text-white/75">
+            <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
                 Setup progress
               </p>
 
-              <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-white/15">
+              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/15">
                 <div
                   className="h-full rounded-full bg-white"
                   style={{ width: `${progressPercentage}%` }}
@@ -187,20 +187,20 @@ export default async function DashboardHomePage() {
                 Ολοκληρώθηκαν {completedSteps} από 3 βασικά βήματα.
               </p>
 
-              <div className="mt-4 space-y-3">
-                <div className="rounded-2xl bg-white/10 px-4 py-3">
+              <div className="mt-3 space-y-2.5">
+                <div className="rounded-2xl bg-white/10 px-4 py-2.5">
                   <p className="text-sm font-medium text-white">
                     Τραπέζια: {hasTables ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                <div className="rounded-2xl bg-white/10 px-4 py-2.5">
                   <p className="text-sm font-medium text-white">
                     Menu: {hasMenu ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-white/10 px-4 py-3">
+                <div className="rounded-2xl bg-white/10 px-4 py-2.5">
                   <p className="text-sm font-medium text-white">
                     Συνδρομή: {hasSubscription ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
                   </p>
