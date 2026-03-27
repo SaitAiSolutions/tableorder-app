@@ -1,5 +1,6 @@
 'use client'
 
+import { ShoppingBag, StickyNote, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import type { CartItem } from '@/types/database.types'
 
@@ -43,16 +44,16 @@ export function CartSheet({
     <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-[#111827]/35 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[#111827]/40 backdrop-blur-[2px]"
         onClick={onClose}
       />
 
-      <div className="absolute bottom-0 left-0 right-0 rounded-t-[28px] border-t border-[#eadfd3] bg-[#fcfaf7] shadow-[0_-10px_40px_rgba(15,23,42,0.12)]">
-        <div className="mx-auto max-w-5xl px-4 pb-6 pt-4 sm:px-6">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
+      <div className="absolute bottom-0 left-0 right-0 max-h-[92vh] rounded-t-[30px] border-t border-[#eadfd3] bg-[#fcfaf7] shadow-[0_-10px_40px_rgba(15,23,42,0.12)]">
+        <div className="mx-auto flex max-w-5xl flex-col px-4 pb-5 pt-4 sm:px-6">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="min-w-0">
               <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8a6d58]">
-                Your order
+                Checkout
               </p>
               <h3 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900">
                 Η παραγγελία σας
@@ -62,9 +63,9 @@ export function CartSheet({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[#e8ddd2] bg-white px-4 py-2 text-sm font-medium text-[#6b5a4f] transition hover:bg-[#f8f3ee]"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e8ddd2] bg-white text-[#6b5a4f] transition hover:bg-[#f8f3ee]"
             >
-              Κλείσιμο
+              <X className="h-5 w-5" />
             </button>
           </div>
 
@@ -75,11 +76,23 @@ export function CartSheet({
           ) : (
             <>
               <div className="mb-4 rounded-[22px] border border-[#eee5dc] bg-white px-4 py-3 text-sm text-[#6b5a4f]">
-                <span className="font-semibold text-gray-900">{totalItems}</span>{' '}
-                προϊόντα στο καλάθι
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {totalItems} {totalItems === 1 ? 'προϊόν' : 'προϊόντα'} στο καλάθι
+                    </p>
+                    <p className="text-[#7b6657]">
+                      Σύνολο: {formatCurrency(totalAmount, currency)}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="max-h-[40vh] space-y-3 overflow-y-auto pr-1">
+              <div className="max-h-[36vh] space-y-3 overflow-y-auto pr-1">
                 {cart.map((item) => (
                   <div
                     key={item.key}
@@ -113,38 +126,55 @@ export function CartSheet({
                       </p>
                     </div>
 
-                    <div className="mt-4 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => onDecrease(item.key)}
-                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cb] bg-[#faf7f2] text-lg font-semibold text-gray-800 transition hover:bg-[#f3ece4]"
-                      >
-                        −
-                      </button>
+                    <div className="mt-4 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => onDecrease(item.key)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cb] bg-[#faf7f2] text-lg font-semibold text-gray-800 transition hover:bg-[#f3ece4]"
+                        >
+                          −
+                        </button>
 
-                      <div className="min-w-8 text-center text-sm font-semibold text-gray-900">
-                        {item.quantity}
+                        <div className="min-w-8 text-center text-sm font-semibold text-gray-900">
+                          {item.quantity}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => onIncrease(item.key)}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cb] bg-[#faf7f2] text-lg font-semibold text-gray-800 transition hover:bg-[#f3ece4]"
+                        >
+                          +
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => onIncrease(item.key)}
-                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5d8cb] bg-[#faf7f2] text-lg font-semibold text-gray-800 transition hover:bg-[#f3ece4]"
-                      >
-                        +
-                      </button>
+                      <p className="text-xs text-[#8a6d58]">
+                        {formatCurrency(item.base_price, currency)} × {item.quantity}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
 
               <div className="mt-4 rounded-[24px] border border-[#eadfd3] bg-white p-4 shadow-[0_6px_20px_rgba(15,23,42,0.04)]">
-                <label
-                  htmlFor="order-notes"
-                  className="mb-2 block text-sm font-medium text-gray-900"
-                >
-                  Σημείωση παραγγελίας
-                </label>
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                    <StickyNote className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="order-notes"
+                      className="block text-sm font-medium text-gray-900"
+                    >
+                      Σημείωση παραγγελίας
+                    </label>
+                    <p className="text-xs text-[#7b6657]">
+                      Προαιρετικό, για ειδικές οδηγίες προς το προσωπικό.
+                    </p>
+                  </div>
+                </div>
 
                 <textarea
                   id="order-notes"
@@ -156,12 +186,21 @@ export function CartSheet({
                 />
               </div>
 
-              <div className="mt-5 rounded-[24px] border border-[#eadfd3] bg-white p-4 shadow-[0_6px_20px_rgba(15,23,42,0.04)]">
-                <div className="mb-4 flex items-center justify-between">
+              <div className="mt-4 rounded-[24px] border border-[#eadfd3] bg-white p-4 shadow-[0_6px_20px_rgba(15,23,42,0.04)]">
+                <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm text-[#7b6657]">Σύνολο παραγγελίας</p>
+                    <p className="text-sm text-[#7b6657]">Τελικό σύνολο</p>
                     <p className="mt-1 text-2xl font-semibold tracking-tight text-gray-900">
                       {formatCurrency(totalAmount, currency)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-[#f6efe8] px-3 py-2 text-right">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-[#8a6d58]">
+                      Έτοιμο για αποστολή
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
+                      {totalItems} {totalItems === 1 ? 'είδος' : 'είδη'}
                     </p>
                   </div>
                 </div>
@@ -172,8 +211,12 @@ export function CartSheet({
                   disabled={submitting || cart.length === 0}
                   className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitting ? 'Υποβολή...' : 'Ολοκλήρωση παραγγελίας'}
+                  {submitting ? 'Αποστολή παραγγελίας...' : 'Αποστολή παραγγελίας'}
                 </button>
+
+                <p className="mt-3 text-center text-xs text-[#8a6d58]">
+                  Η παραγγελία αποστέλλεται άμεσα στο προσωπικό του καταστήματος.
+                </p>
               </div>
             </>
           )}
