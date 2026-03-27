@@ -66,6 +66,10 @@ export default async function DashboardTablesPage({
   const { data: business } = await getCurrentBusiness()
   if (!business) return null
 
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ||
+    'http://localhost:3000'
+
   const { data: tables } = await getTablesWithSessions()
   const safeTables = tables ?? []
 
@@ -163,6 +167,7 @@ export default async function DashboardTablesPage({
               table={table}
               businessSlug={business.slug}
               currency={business.currency}
+              appUrl={appUrl}
             />
           ))}
         </div>

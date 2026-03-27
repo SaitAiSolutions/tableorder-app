@@ -19,12 +19,14 @@ interface TableCardProps {
   table: TableWithActiveSession
   businessSlug: string
   currency: string
+  appUrl: string
 }
 
 export function TableCard({
   table,
   businessSlug,
   currency,
+  appUrl,
 }: TableCardProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -43,12 +45,9 @@ export function TableCard({
   const total = table.active_session?.session_total ?? 0
 
   const customerMenuUrl = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/menu/${businessSlug}/${table.id}`
-    }
-
-    return `/menu/${businessSlug}/${table.id}`
-  }, [businessSlug, table.id])
+    const normalizedAppUrl = appUrl.replace(/\/$/, '')
+    return `${normalizedAppUrl}/menu/${businessSlug}/${table.id}`
+  }, [appUrl, businessSlug, table.id])
 
   function handleClear() {
     const confirmed = window.confirm(
