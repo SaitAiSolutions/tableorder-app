@@ -86,12 +86,7 @@ export default async function DashboardHomePage() {
 
   const activeOrders = activeOrdersList.length
 
-  const occupiedTables = safeTables.filter((table) => {
-    const sessionOrders = table.active_session?.orders ?? []
-    return sessionOrders.some(
-      (order) => order.status !== 'completed' && order.status !== 'cancelled',
-    )
-  }).length
+  const occupiedTables = safeTables.filter((table) => !!table.active_session).length
 
   const todayRevenue = safeOrders
     .filter((o) => {
