@@ -1,6 +1,18 @@
 import Link from 'next/link'
-import { ArrowRight, ClipboardList, Table2, Wallet } from 'lucide-react'
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  CreditCard,
+  Table2,
+  UtensilsCrossed,
+  Wallet,
+} from 'lucide-react'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
+import {
+  getCategoriesForDashboard,
+  getProductsForDashboard,
+} from '@/lib/actions/menu.actions'
 import { getOrdersByBusiness } from '@/lib/actions/orders.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
@@ -40,16 +52,15 @@ export default async function DashboardHomePage() {
             Η πρόσβαση στο dashboard έχει περιοριστεί
           </h3>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-[#7b6657] sm:text-base">
-            Μπορείτε να μεταβείτε στις ρυθμίσεις ή στη σελίδα χρέωσης όταν τη
-            προσθέσουμε, ώστε να ενεργοποιήσετε ξανά τον λογαριασμό σας.
+            Μεταβείτε στη σελίδα χρέωσης για να ενεργοποιήσετε ξανά τον λογαριασμό σας.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/dashboard/settings"
+              href="/dashboard/billing"
               className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
             >
-              Πήγαινε στις ρυθμίσεις
+              Πήγαινε στο billing
             </Link>
           </div>
         </div>
@@ -57,11 +68,18 @@ export default async function DashboardHomePage() {
     )
   }
 
-  const { data: orders } = await getOrdersByBusiness()
-  const { data: tables } = await getTablesWithSessions()
+  const [{ data: orders }, { data: tables }, { data: categories }, { data: products }] =
+    await Promise.all([
+      getOrdersByBusiness(),
+      getTablesWithSessions(),
+      getCategoriesForDashboard(),
+      getProductsForDashboard(),
+    ])
 
   const safeOrders = orders ?? []
   const safeTables = tables ?? []
+  const safeCategories = categories ?? []
+  const safeProducts = products ?? []
 
   const activeOrders = safeOrders.filter(
     (o) => o.status !== 'completed' && o.status !== 'cancelled',
@@ -81,6 +99,70 @@ export default async function DashboardHomePage() {
     })
     .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0)
 
+  const totalTables = safeTables.length
+  const totalProducts = safeProducts.length
+  const totalCategories = safeCategories.length
+
+  const hasTables = totalTables > 0
+  const hasMenu = totalProducts > 0 || totalCategories > 0
+  const hasSubscription = business.subscription_status === 'active'
+
+  const setupSteps = [
+    {
+      label: 'Έχεις δημιουργήσει τραπέζια',
+      done: hasTables,
+      href: '/dashboard/tables',
+      cta: hasTables ? 'Δες τραπέζια' : 'Πρόσθεσε τραπέζια',
+    },
+    {
+      label: 'Έχεις στήσει το menu',
+      done: hasMenu,
+      href: '/dashboard/menu',
+      cta: hasMenu ? 'Δες menu' : 'Στήσε menu',
+    },
+    {
+      label: 'Έχεις ενεργή συνδρομή',
+      done: hasSubscription,
+      href: '/dashboard/billing',
+      cta: hasSubscription ? 'Δες billing' : 'Ενεργοποίησε συνδρομή',
+    },
+  ]
+
+  const completedSteps = setupSteps.filter((step) => step.done).length
+  const progressPercentage = Math.round((completedSteps / setupSteps.length) * 100)
+
+  const nextAction = !hasTables
+    ? {
+        title: 'Πρόσθεσε τα πρώτα τραπέζια',
+        description:
+          'Ξεκίνα δημιουργώντας τα τραπέζια του καταστήματος για να μπορείς να παράγεις QR links.',
+        href: '/dashboard/tables',
+        cta: 'Πήγαινε στα τραπέζια',
+      }
+    : !hasMenu
+      ? {
+          title: 'Στήσε το πρώτο menu',
+          description:
+            'Δημιούργησε κατηγορίες και προϊόντα ώστε να μπορεί ο πελάτης να παραγγείλει από το κινητό.',
+          href: '/dashboard/menu',
+          cta: 'Πήγαινε στο menu',
+        }
+      : !hasSubscription
+        ? {
+            title: 'Ολοκλήρωσε το billing',
+            description:
+              'Ενεργοποίησε τη συνδρομή σου για να συνεχίσεις απρόσκοπτα μετά το trial.',
+            href: '/dashboard/billing',
+            cta: 'Πήγαινε στο billing',
+          }
+        : {
+            title: 'Το κατάστημα είναι έτοιμο',
+            description:
+              'Συνέχισε με παραγγελίες, τραπέζια και καθημερινή διαχείριση από το dashboard.',
+            href: '/dashboard/orders',
+            cta: 'Δες παραγγελίες',
+          }
+
   return (
     <div className="space-y-6 sm:space-y-8">
       {!trial.isActiveSubscription && typeof trial.daysLeft === 'number' ? (
@@ -93,19 +175,85 @@ export default async function DashboardHomePage() {
 
       <div className="overflow-hidden rounded-[24px] border border-[#ebe5dd] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
         <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-7 text-white sm:px-6 sm:py-8 lg:px-8">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/70">
-            Overview
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
-            {business.name ?? 'Dashboard'}
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 lg:text-base">
-            Επισκόπηση επιχείρησης, παραγγελιών και πληρότητας τραπεζιών σε ένα σημείο.
-          </p>
+          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/70">
+                Overview
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
+                {business.name ?? 'Dashboard'}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 lg:text-base">
+                Επισκόπηση επιχείρησης, παραγγελιών, menu και πληρότητας τραπεζιών
+                σε ένα σημείο.
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href={nextAction.href}
+                  className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#1f2937] hover:bg-[#f5efe7]"
+                >
+                  {nextAction.cta}
+                </Link>
+
+                <Link
+                  href="/dashboard/billing"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/15"
+                >
+                  Billing
+                </Link>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] bg-white/10 p-5 backdrop-blur-sm">
+              <p className="text-sm font-medium uppercase tracking-[0.16em] text-white/75">
+                Setup progress
+              </p>
+              <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full rounded-full bg-white"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+              <p className="mt-3 text-sm text-white/85">
+                Ολοκληρώθηκαν {completedSteps} από {setupSteps.length} βασικά βήματα.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                {setupSteps.map((step) => (
+                  <div
+                    key={step.label}
+                    className="flex items-start justify-between gap-3 rounded-2xl bg-white/10 px-4 py-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2
+                        className={`mt-0.5 h-4 w-4 shrink-0 ${
+                          step.done ? 'text-white' : 'text-white/45'
+                        }`}
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-white">{step.label}</p>
+                        <p className="mt-1 text-xs text-white/70">
+                          {step.done ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={step.href}
+                      className="shrink-0 text-xs font-medium text-white underline-offset-4 hover:underline"
+                    >
+                      {step.cta}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
             <ClipboardList className="h-5 w-5" />
@@ -126,7 +274,7 @@ export default async function DashboardHomePage() {
           </p>
         </div>
 
-        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] md:col-span-2 xl:col-span-1">
+        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
             <Wallet className="h-5 w-5" />
           </div>
@@ -135,42 +283,121 @@ export default async function DashboardHomePage() {
             {formatCurrency(todayRevenue, business.currency ?? 'EUR')}
           </p>
         </div>
+
+        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+            <UtensilsCrossed className="h-5 w-5" />
+          </div>
+          <p className="text-sm text-[#7b6657]">Προϊόντα στο menu</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+            {totalProducts}
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Link
-          href="/dashboard/orders"
-          className="group rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(15,23,42,0.07)] sm:rounded-[24px] sm:p-6"
-        >
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">
-                Παραγγελίες
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                Next step
+              </p>
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
+                {nextAction.title}
               </h3>
-              <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-                Δείτε, αποδεχτείτε και διαχειριστείτε τις ενεργές παραγγελίες σε πραγματικό χρόνο.
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#7b6657]">
+                {nextAction.description}
               </p>
             </div>
-            <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
-          </div>
-        </Link>
 
-        <Link
-          href="/dashboard/tables"
-          className="group rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(15,23,42,0.07)] sm:rounded-[24px] sm:p-6"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">
-                Τραπέζια
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-                Παρακολουθήστε πληρότητα, ενεργές συνεδρίες και τη συνολική εικόνα του χώρου.
-              </p>
-            </div>
-            <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+            <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#8b715d]" />
           </div>
-        </Link>
+
+          <div className="mt-6">
+            <Link
+              href={nextAction.href}
+              className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+            >
+              {nextAction.cta}
+            </Link>
+          </div>
+        </div>
+
+        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+            Quick actions
+          </p>
+
+          <div className="mt-4 grid gap-3">
+            <Link
+              href="/dashboard/tables"
+              className="group rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4 transition hover:bg-white"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Διαχείριση τραπεζιών
+                  </p>
+                  <p className="mt-1 text-sm text-[#7b6657]">
+                    Πρόσθεσε τραπέζια, QR και floor setup.
+                  </p>
+                </div>
+                <Table2 className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/menu"
+              className="group rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4 transition hover:bg-white"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Επεξεργασία menu
+                  </p>
+                  <p className="mt-1 text-sm text-[#7b6657]">
+                    Κατηγορίες, προϊόντα και επιλογές.
+                  </p>
+                </div>
+                <UtensilsCrossed className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/orders"
+              className="group rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4 transition hover:bg-white"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Παραγγελίες
+                  </p>
+                  <p className="mt-1 text-sm text-[#7b6657]">
+                    Παρακολούθηση ενεργών και ολοκληρωμένων παραγγελιών.
+                  </p>
+                </div>
+                <ClipboardList className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/billing"
+              className="group rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4 transition hover:bg-white"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Billing & συνδρομή
+                  </p>
+                  <p className="mt-1 text-sm text-[#7b6657]">
+                    Δες trial, συνδρομή και τιμολόγηση.
+                  </p>
+                </div>
+                <CreditCard className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
+              </div>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   )
