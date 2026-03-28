@@ -1,7 +1,7 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/utils/admin'
@@ -19,10 +19,9 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
-async function resolveCurrentBusinessContext() {
+async function getBusinessContext() {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const cookieStore = await cookies()
 
   const {
     data: { user },
@@ -30,22 +29,39 @@ async function resolveCurrentBusinessContext() {
 
   if (!user) {
     return {
-      businessId: null,
+      businessId: null as string | null,
       error: 'Not authenticated',
-      isAdminSelection: false,
-      db: supabase,
+      useAdmin: false,
+      client: supabase,
     }
   }
 
-  const isSuperAdmin = isSuperAdminEmail(user.email)
+  const cookieStore = await cookies()
   const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
+  const isSuperAdmin = isSuperAdminEmail(user.email)
 
   if (isSuperAdmin && adminSelectedBusinessId) {
+    const { data: selectedBusiness, error: selectedBusinessError } = await admin
+      .from('businesses')
+      .select('id')
+      .eq('id', adminSelectedBusinessId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (selectedBusinessError || !selectedBusiness?.id) {
+      return {
+        businessId: null as string | null,
+        error: 'Η επιλεγμένη επιχείρηση admin δεν βρέθηκε.',
+        useAdmin: true,
+        client: admin,
+      }
+    }
+
     return {
-      businessId: adminSelectedBusinessId,
+      businessId: selectedBusiness.id,
       error: null,
-      isAdminSelection: true,
-      db: admin,
+      useAdmin: true,
+      client: admin,
     }
   }
 
@@ -59,37 +75,39 @@ async function resolveCurrentBusinessContext() {
 
   if (businessError || !row?.business_id) {
     return {
-      businessId: null,
+      businessId: null as string | null,
       error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.',
-      isAdminSelection: false,
-      db: supabase,
+      useAdmin: false,
+      client: supabase,
     }
   }
 
   return {
     businessId: row.business_id,
     error: null,
-    isAdminSelection: false,
-    db: supabase,
+    useAdmin: false,
+    client: supabase,
   }
 }
 
 async function refreshBusinessPlan(businessId: string) {
-  const admin = createAdminClient()
+  const { client } = await getBusinessContext()
 
-  await admin.rpc('refresh_business_plan_from_tables' as never, {
+  await client.rpc('refresh_business_plan_from_tables' as never, {
     p_business_id: businessId,
   } as never)
 
   revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
 }
 
 export async function getTablesWithSessions(
   businessId?: string,
 ): Promise<ActionResult<TableWithActiveSession[]>> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
 
   let resolvedBusinessId = businessId
 
@@ -101,46 +119,20 @@ export async function getTablesWithSessions(
     resolvedBusinessId = context.businessId
   }
 
-  const { data, error } = await context.db
+  const { data, error } = await client
     .from('tables')
     .select(`
       *,
       table_sessions (
-        id,
-        status,
-        is_active,
-        started_at,
-        cleared_at,
-        created_at,
+        id, status, is_active, started_at, cleared_at, created_at,
         orders (
-          id,
-          business_id,
-          table_id,
-          table_session_id,
-          status,
-          notes,
-          total_amount,
-          created_at,
-          updated_at,
+          id, status, total_amount, notes, created_at, updated_at,
           order_items (
-            id,
-            business_id,
-            order_id,
-            product_id,
-            product_name_snapshot_el,
-            product_name_snapshot_en,
-            unit_price,
-            quantity,
-            line_total,
+            id, product_name_snapshot_el, product_name_snapshot_en,
+            unit_price, quantity, line_total,
             order_item_options (
-              id,
-              business_id,
-              order_item_id,
-              option_group_name_el,
-              option_group_name_en,
-              option_choice_name_el,
-              option_choice_name_en,
-              price_delta
+              id, option_group_name_el, option_group_name_en,
+              option_choice_name_el, option_choice_name_en, price_delta
             )
           )
         )
@@ -148,41 +140,31 @@ export async function getTablesWithSessions(
     `)
     .eq('business_id', resolvedBusinessId)
     .eq('is_active', true)
+    .eq('table_sessions.is_active', true)
     .order('table_number')
 
   if (error) return { data: null, error: error.message }
 
   const enriched: TableWithActiveSession[] = (data ?? []).map((table: any) => {
-    const sessions = Array.isArray(table.table_sessions) ? table.table_sessions : []
+    const sessions = (table.table_sessions ?? []) as any[]
+    const session = sessions[0] ?? null
 
-    const activeRawSession =
-      sessions.find((session) => session?.is_active === true) ?? null
+    if (!session) return { ...table, active_session: null }
 
-    if (!activeRawSession) {
-      return {
-        ...table,
-        active_session: null,
-      }
-    }
-
-    const orders = (activeRawSession.orders ?? []) as OrderWithItems[]
-
+    const orders = (session.orders ?? []) as OrderWithItems[]
     const session_total = orders
       .filter((o) => o.status !== 'cancelled')
-      .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0)
+      .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
 
     const active_session: SessionWithOrders = {
-      ...activeRawSession,
+      ...session,
       business_id: table.business_id,
       table_id: table.id,
       orders,
       session_total,
     }
 
-    return {
-      ...table,
-      active_session,
-    }
+    return { ...table, active_session }
   })
 
   return { data: enriched, error: null }
@@ -191,9 +173,10 @@ export async function getTablesWithSessions(
 export async function getSessionDetail(
   sessionId: string,
 ): Promise<ActionResult<SessionWithOrders>> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
 
-  const { data, error } = await context.db
+  const { data, error } = await client
     .from('table_sessions')
     .select(`
       *,
@@ -213,7 +196,7 @@ export async function getSessionDetail(
   const orders = (data.orders ?? []) as OrderWithItems[]
   const session_total = orders
     .filter((o) => o.status !== 'cancelled')
-    .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0)
+    .reduce((sum, o) => sum + o.total_amount, 0)
 
   return {
     data: { ...data, orders, session_total } as SessionWithOrders,
@@ -224,9 +207,11 @@ export async function getSessionDetail(
 export async function createTable(
   formData: FormData,
 ): Promise<ActionResult<Table>> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
+  const businessId = context.businessId
 
-  if (context.error || !context.businessId) {
+  if (context.error || !businessId) {
     return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
@@ -238,12 +223,14 @@ export async function createTable(
   }
 
   const payload: InsertTable = {
-    business_id: context.businessId,
+    business_id: businessId,
     table_number,
     name: name || null,
+    is_active: true,
+    notes: null,
   }
 
-  const { data, error } = await context.db
+  const { data, error } = await client
     .from('tables')
     .insert(payload as never)
     .select()
@@ -259,12 +246,13 @@ export async function createTable(
     return { data: null, error: error.message }
   }
 
-  await refreshBusinessPlan(context.businessId)
+  await refreshBusinessPlan(businessId)
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
 
   return { data: data as Table, error: null }
 }
@@ -272,9 +260,11 @@ export async function createTable(
 export async function createTablesBatch(
   count: number,
 ): Promise<ActionResult<{ created: number }>> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
+  const businessId = context.businessId
 
-  if (context.error || !context.businessId) {
+  if (context.error || !businessId) {
     return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
@@ -288,10 +278,10 @@ export async function createTablesBatch(
     return { data: null, error: 'Μπορείτε να δημιουργήσετε έως 200 τραπέζια τη φορά.' }
   }
 
-  const { data: existingTables, error: existingError } = await context.db
+  const { data: existingTables, error: existingError } = await client
     .from('tables')
     .select('table_number')
-    .eq('business_id', context.businessId)
+    .eq('business_id', businessId)
 
   if (existingError) {
     return { data: null, error: existingError.message }
@@ -311,7 +301,7 @@ export async function createTablesBatch(
     }
 
     payload.push({
-      business_id: context.businessId,
+      business_id: businessId,
       table_number: value,
       name: null,
       is_active: true,
@@ -326,7 +316,7 @@ export async function createTablesBatch(
     }
   }
 
-  const { error: insertError } = await context.db
+  const { error: insertError } = await client
     .from('tables')
     .insert(payload as never)
 
@@ -334,13 +324,14 @@ export async function createTablesBatch(
     return { data: null, error: insertError.message }
   }
 
-  await refreshBusinessPlan(context.businessId)
+  await refreshBusinessPlan(businessId)
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard', 'layout')
   revalidatePath('/onboarding/ready')
+  revalidatePath('/admin')
 
   return {
     data: { created: payload.length },
@@ -352,9 +343,10 @@ export async function updateTable(
   tableId: string,
   updates: UpdateTable,
 ): Promise<ActionResult<Table>> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
 
-  const { data, error } = await context.db
+  const { data, error } = await client
     .from('tables')
     .update(updates as never)
     .eq('id', tableId)
@@ -374,18 +366,21 @@ export async function updateTable(
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
 
   return { data: data as Table, error: null }
 }
 
 export async function deleteTable(tableId: string): Promise<ActionResult> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
+  const businessId = context.businessId
 
-  if (context.error || !context.businessId) {
+  if (context.error || !businessId) {
     return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data: tableRow, error: tableError } = await context.db
+  const { data: tableRow, error: tableError } = await client
     .from('tables')
     .select('id')
     .eq('id', tableId)
@@ -395,7 +390,7 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
     return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
   }
 
-  const { data: activeSession, error: sessionError } = await context.db
+  const { data: activeSession, error: sessionError } = await client
     .from('table_sessions')
     .select('id')
     .eq('table_id', tableId)
@@ -413,32 +408,35 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
     }
   }
 
-  const { error } = await context.db.from('tables').delete().eq('id', tableId)
+  const { error } = await client.from('tables').delete().eq('id', tableId)
 
   if (error) {
     return { data: null, error: error.message }
   }
 
-  await refreshBusinessPlan(context.businessId)
+  await refreshBusinessPlan(businessId)
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/orders')
   revalidatePath('/dashboard/billing')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
 
   return { data: null, error: null }
 }
 
 export async function clearTable(tableId: string): Promise<ActionResult> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
+  const businessId = context.businessId
 
-  if (context.error || !context.businessId) {
+  if (context.error || !businessId) {
     return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data, error } = await context.db.rpc('clear_table' as never, {
-    p_business_id: context.businessId,
+  const { data, error } = await client.rpc('clear_table' as never, {
+    p_business_id: businessId,
     p_table_id: tableId,
   } as never)
 
@@ -457,6 +455,7 @@ export async function clearTable(tableId: string): Promise<ActionResult> {
   revalidatePath('/dashboard/orders')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
 
   return { data: null, error: null }
 }
@@ -466,10 +465,17 @@ export async function transferOrder(
   orderId: string,
   targetTableId: string,
 ): Promise<ActionResult> {
-  const context = await resolveCurrentBusinessContext()
+  const context = await getBusinessContext()
+  const client = context.client
 
-  const { data, error } = await context.db.rpc('transfer_order' as never, {
-    p_business_id: businessId,
+  const resolvedBusinessId = context.businessId ?? businessId
+
+  if (context.error || !resolvedBusinessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  const { data, error } = await client.rpc('transfer_order' as never, {
+    p_business_id: resolvedBusinessId,
     p_order_id: orderId,
     p_target_table_id: targetTableId,
   } as never)
@@ -499,6 +505,7 @@ export async function transferOrder(
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/orders')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
 
   return { data: null, error: null }
 }
