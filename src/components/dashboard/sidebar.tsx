@@ -9,6 +9,7 @@ import {
   Settings,
   Table2,
   CreditCard,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -19,6 +20,7 @@ const items = [
   { href: '/dashboard/tables', label: 'Τραπέζια', icon: Table2 },
   { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { href: '/dashboard/settings', label: 'Ρυθμίσεις', icon: Settings },
+  { href: '/admin', label: 'Admin', icon: ShieldCheck },
 ]
 
 export function Sidebar() {

@@ -1,15 +1,30 @@
 'use server'
 
 import Stripe from 'stripe'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isSuperAdminEmail } from '@/lib/utils/admin'
 import type { Business, UpdateBusiness } from '@/types/database.types'
 
 interface ActionResult<T = null> {
   data: T | null
   error: string | null
+}
+
+type AdminBusinessListItem = {
+  id: string
+  name: string
+  slug: string
+  account_status: string | null
+  subscription_status: string | null
+  subscription_plan: string | null
+  is_active: boolean
+  created_at: string
+  owner_email: string | null
+  tables_count: number
 }
 
 function getStripeClient() {
@@ -50,14 +65,50 @@ function getPlanFromTableCount(tableCount: number) {
   }
 }
 
+async function getAuthenticatedUser() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  return user
+}
+
+export async function isCurrentUserSuperAdmin() {
+  const user = await getAuthenticatedUser()
+  return isSuperAdminEmail(user?.email)
+}
+
 export async function getCurrentBusiness(): Promise<ActionResult<Business>> {
   const supabase = await createClient()
+  const admin = createAdminClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) return { data: null, error: 'Not authenticated' }
+
+  const isSuperAdmin = isSuperAdminEmail(user.email)
+  const cookieStore = await cookies()
+  const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
+
+  if (isSuperAdmin && adminSelectedBusinessId) {
+    const { data, error } = await admin
+      .from('businesses')
+      .select('*')
+      .eq('id', adminSelectedBusinessId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (error) return { data: null, error: error.message }
+    if (!data) {
+      cookieStore.delete('admin_business_id')
+      return { data: null, error: 'Η επιλεγμένη επιχείρηση δεν βρέθηκε.' }
+    }
+
+    return { data: data as unknown as Business, error: null }
+  }
 
   const { data, error } = await supabase
     .from('businesses')
@@ -371,4 +422,157 @@ export async function createStripePortalSession(): Promise<void> {
   }
 
   redirect(session.url)
+}
+
+export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessListItem[]>> {
+  const user = await getAuthenticatedUser()
+
+  if (!user || !isSuperAdminEmail(user.email)) {
+    return { data: null, error: 'Δεν έχετε πρόσβαση admin.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: businesses, error } = await admin
+    .from('businesses')
+    .select(`
+      id,
+      name,
+      slug,
+      account_status,
+      subscription_status,
+      subscription_plan,
+      is_active,
+      created_at,
+      business_users (
+        user_id,
+        role
+      ),
+      tables (
+        id
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return { data: null, error: error.message }
+  }
+
+  const rows = (businesses ?? []) as Array<{
+    id: string
+    name: string
+    slug: string
+    account_status: string | null
+    subscription_status: string | null
+    subscription_plan: string | null
+    is_active: boolean
+    created_at: string
+    business_users?: Array<{ user_id: string; role?: string | null }>
+    tables?: Array<{ id: string }>
+  }>
+
+  const ownerIds = rows
+    .flatMap((business) =>
+      (business.business_users ?? [])
+        .filter((item) => item.role === 'owner')
+        .map((item) => item.user_id),
+    )
+    .filter(Boolean)
+
+  let ownerEmailMap = new Map<string, string>()
+
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await admin
+      .from('profiles')
+      .select('id')
+      .in('id', ownerIds)
+
+    const uniqueOwnerIds = [...new Set(ownerIds)]
+
+    uniqueOwnerIds.forEach((id) => {
+      ownerEmailMap.set(id, null as unknown as string)
+    })
+
+    const usersResponse = await admin.auth.admin.listUsers()
+
+    if (usersResponse.data?.users) {
+      for (const authUser of usersResponse.data.users) {
+        if (uniqueOwnerIds.includes(authUser.id)) {
+          ownerEmailMap.set(authUser.id, authUser.email ?? '')
+        }
+      }
+    }
+
+    void profiles
+  }
+
+  const data: AdminBusinessListItem[] = rows.map((business) => {
+    const ownerUserId =
+      business.business_users?.find((item) => item.role === 'owner')?.user_id ?? null
+
+    return {
+      id: business.id,
+      name: business.name,
+      slug: business.slug,
+      account_status: business.account_status,
+      subscription_status: business.subscription_status,
+      subscription_plan: business.subscription_plan,
+      is_active: business.is_active,
+      created_at: business.created_at,
+      owner_email: ownerUserId ? ownerEmailMap.get(ownerUserId) ?? null : null,
+      tables_count: business.tables?.length ?? 0,
+    }
+  })
+
+  return { data, error: null }
+}
+
+export async function adminSelectBusiness(businessId: string): Promise<ActionResult> {
+  const user = await getAuthenticatedUser()
+
+  if (!user || !isSuperAdminEmail(user.email)) {
+    return { data: null, error: 'Δεν έχετε πρόσβαση admin.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: business, error } = await admin
+    .from('businesses')
+    .select('id')
+    .eq('id', businessId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) return { data: null, error: error.message }
+  if (!business) return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
+
+  const cookieStore = await cookies()
+  cookieStore.set('admin_business_id', businessId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+  })
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
+
+  return { data: null, error: null }
+}
+
+export async function adminClearBusinessSelection(): Promise<ActionResult> {
+  const user = await getAuthenticatedUser()
+
+  if (!user || !isSuperAdminEmail(user.email)) {
+    return { data: null, error: 'Δεν έχετε πρόσβαση admin.' }
+  }
+
+  const cookieStore = await cookies()
+  cookieStore.delete('admin_business_id')
+
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
+
+  return { data: null, error: null }
 }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
-import { getCurrentBusiness } from '@/lib/actions/business.actions'
+import { getCurrentBusiness, isCurrentUserSuperAdmin } from '@/lib/actions/business.actions'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardLayout({
@@ -16,8 +16,16 @@ export default async function DashboardLayout({
 
   if (!user) redirect('/auth/login')
 
+  const isSuperAdmin = await isCurrentUserSuperAdmin()
   const { data: business } = await getCurrentBusiness()
-  if (!business) redirect('/onboarding')
+
+  if (!business) {
+    if (isSuperAdmin) {
+      redirect('/admin')
+    }
+
+    redirect('/onboarding')
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f6f3ee]">
