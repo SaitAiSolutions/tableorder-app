@@ -272,7 +272,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
     setServiceMessage(
       type === 'waiter'
         ? 'Η κλήση σερβιτόρου στάλθηκε επιτυχώς.'
-        : 'Το αίτημα για λογαριασμό στάλθηκε επιτυχώς.',
+        : 'Το αίτημα λογαριασμού στάλθηκε επιτυχώς.',
     )
   }
 
@@ -364,7 +364,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
               </div>
               <div>
                 <p className="text-base font-semibold text-gray-900">
-                  Ζήτηση λογαριασμού
+                  Αίτημα λογαριασμού
                 </p>
                 <p className="mt-1 text-sm text-[#7b6657]">
                   Στείλτε αίτημα για λογαριασμό στο προσωπικό.

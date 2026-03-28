@@ -29,7 +29,6 @@ type FilterKey =
   | 'ready'
   | 'completed'
   | 'cancelled'
-  | 'service'
 
 const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
 
@@ -103,7 +102,7 @@ function getElapsedLabel(createdAt: string) {
 }
 
 function getServiceRequestLabel(type: ServiceRequestType) {
-  return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Ζήτηση λογαριασμού'
+  return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Αίτημα λογαριασμού'
 }
 
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
@@ -189,10 +188,23 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
     })
   }
 
-  const counts = useMemo(() => {
-    const serviceOrders = orders.filter((o) => !!getServiceRequestType(o.notes))
-    const regularOrders = orders.filter((o) => !getServiceRequestType(o.notes))
+  const serviceOrders = useMemo(
+    () =>
+      orders.filter(
+        (o) =>
+          !!getServiceRequestType(o.notes) &&
+          o.status !== 'completed' &&
+          o.status !== 'cancelled',
+      ),
+    [orders],
+  )
 
+  const regularOrders = useMemo(
+    () => orders.filter((o) => !getServiceRequestType(o.notes)),
+    [orders],
+  )
+
+  const counts = useMemo(() => {
     return {
       all: orders.length,
       active: orders.filter(
@@ -204,40 +216,23 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
       ready: regularOrders.filter((o) => o.status === 'ready').length,
       completed: orders.filter((o) => o.status === 'completed').length,
       cancelled: orders.filter((o) => o.status === 'cancelled').length,
-      service: serviceOrders.filter(
-        (o) => o.status !== 'completed' && o.status !== 'cancelled',
-      ).length,
     }
-  }, [orders])
+  }, [orders, regularOrders])
 
   const filteredOrders = useMemo(() => {
-    if (activeFilter === 'all') return orders
+    if (activeFilter === 'all') return regularOrders
 
     if (activeFilter === 'active') {
-      return orders.filter(
+      return regularOrders.filter(
         (o) => o.status !== 'completed' && o.status !== 'cancelled',
       )
     }
 
-    if (activeFilter === 'service') {
-      return orders.filter(
-        (o) =>
-          !!getServiceRequestType(o.notes) &&
-          o.status !== 'completed' &&
-          o.status !== 'cancelled',
-      )
-    }
-
-    return orders.filter(
-      (o) =>
-        !getServiceRequestType(o.notes) &&
-        o.status === activeFilter,
-    )
-  }, [orders, activeFilter])
+    return regularOrders.filter((o) => o.status === activeFilter)
+  }, [regularOrders, activeFilter])
 
   const filters: Array<{ key: FilterKey; label: string; count: number }> = [
     { key: 'active', label: 'Ενεργές', count: counts.active },
-    { key: 'service', label: 'Service', count: counts.service },
     { key: 'new', label: 'Νέες', count: counts.new },
     { key: 'accepted', label: 'Accepted', count: counts.accepted },
     { key: 'preparing', label: 'Preparing', count: counts.preparing },
@@ -248,7 +243,125 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
   ]
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {serviceOrders.length > 0 ? (
+        <div className="rounded-[24px] border border-[#eadfd3] bg-[#fcfaf7] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                Live service
+              </p>
+              <h3 className="mt-1 text-xl font-semibold tracking-tight text-gray-900">
+                Service requests
+              </h3>
+              <p className="mt-1 text-sm text-[#7b6657]">
+                Αιτήματα εξυπηρέτησης που χρειάζονται άμεση ενέργεια.
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-[#5f5146]">
+              {serviceOrders.length} ενεργά
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {serviceOrders.map((order) => {
+              const safeOrder = order as OrderWithOptionalTable
+              const serviceType = getServiceRequestType(order.notes)
+              const tableNumber = safeOrder.table?.table_number
+              const tableName = safeOrder.table?.name?.trim()
+              const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
+              const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
+              const nextActionLabel = getNextActionLabel(order.status, serviceType)
+
+              return (
+                <div
+                  key={String(order.id)}
+                  className="rounded-[24px] border border-[#e7ddd3] bg-white p-5"
+                >
+                  <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                      <h4 className="text-lg font-semibold tracking-tight text-gray-900">
+                        {tableSubtitle}
+                      </h4>
+                      <p className="mt-2 text-sm text-[#7b6657]">
+                        {new Date(order.created_at).toLocaleString('el-GR')}
+                      </p>
+                      <p className="mt-1 text-xs text-[#8b715d]">
+                        {getElapsedLabel(order.created_at)}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${getStatusBadgeClass(order.status)}`}
+                    >
+                      {getStatusLabel(order.status)}
+                    </span>
+                  </div>
+
+                  <div className="rounded-[22px] border border-[#eadfd3] bg-[#fcfaf7] p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                        {serviceType === 'waiter' ? (
+                          <BellRing className="h-5 w-5" />
+                        ) : (
+                          <ReceiptText className="h-5 w-5" />
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {serviceType ? getServiceRequestLabel(serviceType) : 'Service request'}
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Αίτημα εξυπηρέτησης από το τραπέζι.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3">
+                    {order.status !== 'completed' &&
+                    order.status !== 'cancelled' &&
+                    nextActionLabel ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                        onClick={() =>
+                          handleAdvance(String(order.id), order.status, serviceType)
+                        }
+                      >
+                        {nextActionLabel}
+                      </button>
+                    ) : null}
+
+                    <div className="flex flex-wrap gap-2">
+                      {order.status !== 'completed' && order.status !== 'cancelled' ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center rounded-xl border border-[#ddd2c7] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f6efe8]"
+                          onClick={() => handleCancel(String(order.id))}
+                        >
+                          Ακύρωση
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-xl border border-[#ddd2c7] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f6efe8]"
+                        onClick={() => handleClearTable(String(order.id))}
+                      >
+                        Εκκαθάριση τραπεζιού
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
         <div className="mb-3">
           <h3 className="text-lg font-semibold text-gray-900">Φίλτρα παραγγελιών</h3>
@@ -308,7 +421,6 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
         <div className="grid gap-4 xl:grid-cols-2">
           {filteredOrders.map((order) => {
             const safeOrder = order as OrderWithOptionalTable
-            const serviceType = getServiceRequestType(order.notes)
             const totalItems =
               order.order_items?.reduce(
                 (sum, item) => sum + Number(item.quantity ?? 0),
@@ -319,7 +431,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
             const tableName = safeOrder.table?.name?.trim()
             const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
             const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
-            const nextActionLabel = getNextActionLabel(order.status, serviceType)
+            const nextActionLabel = getNextActionLabel(order.status, null)
 
             return (
               <div
@@ -353,102 +465,77 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                   </span>
                 </div>
 
-                {serviceType ? (
-                  <div className="rounded-[24px] border border-[#eadfd3] bg-[#fcfaf7] p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
-                        {serviceType === 'waiter' ? (
-                          <BellRing className="h-5 w-5" />
-                        ) : (
-                          <ReceiptText className="h-5 w-5" />
-                        )}
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {getServiceRequestLabel(serviceType)}
-                        </p>
-                        <p className="mt-1 text-sm text-[#7b6657]">
-                          Αίτημα εξυπηρέτησης από το τραπέζι.
-                        </p>
-                      </div>
-                    </div>
+                <div className="mb-4 grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                      Είδη
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-gray-900">
+                      {totalItems}
+                    </p>
                   </div>
-                ) : (
-                  <>
-                    <div className="mb-4 grid grid-cols-3 gap-3">
-                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                          Είδη
-                        </p>
-                        <p className="mt-2 text-xl font-semibold text-gray-900">
-                          {totalItems}
-                        </p>
-                      </div>
 
-                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                          Γραμμές
-                        </p>
-                        <p className="mt-2 text-xl font-semibold text-gray-900">
-                          {order.order_items?.length ?? 0}
-                        </p>
-                      </div>
+                  <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                      Γραμμές
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-gray-900">
+                      {order.order_items?.length ?? 0}
+                    </p>
+                  </div>
 
-                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                          Σύνολο
-                        </p>
-                        <p className="mt-2 text-xl font-semibold text-gray-900">
-                          {formatCurrency(order.total_amount)}
-                        </p>
-                      </div>
-                    </div>
+                  <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                      Σύνολο
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-gray-900">
+                      {formatCurrency(order.total_amount)}
+                    </p>
+                  </div>
+                </div>
 
-                    <div className="space-y-3">
-                      {order.order_items?.map((item) => (
-                        <div
-                          key={String(item.id)}
-                          className="rounded-2xl border border-[#f0e8df] bg-[#faf7f2] px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-900">
-                                {item.quantity}× {item.product_name_snapshot_el}
-                              </p>
+                <div className="space-y-3">
+                  {order.order_items?.map((item) => (
+                    <div
+                      key={String(item.id)}
+                      className="rounded-2xl border border-[#f0e8df] bg-[#faf7f2] px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900">
+                            {item.quantity}× {item.product_name_snapshot_el}
+                          </p>
 
-                              {item.order_item_options &&
-                              item.order_item_options.length > 0 ? (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {item.order_item_options.map((option) => (
-                                    <span
-                                      key={String(option.id)}
-                                      className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
-                                    >
-                                      {option.option_group_name_el}:{' '}
-                                      {option.option_choice_name_el}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
+                          {item.order_item_options &&
+                          item.order_item_options.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {item.order_item_options.map((option) => (
+                                <span
+                                  key={String(option.id)}
+                                  className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
+                                >
+                                  {option.option_group_name_el}:{' '}
+                                  {option.option_choice_name_el}
+                                </span>
+                              ))}
                             </div>
-
-                            <p className="shrink-0 text-sm font-semibold text-gray-900">
-                              {formatCurrency(item.line_total)}
-                            </p>
-                          </div>
+                          ) : null}
                         </div>
-                      ))}
-                    </div>
 
-                    {order.notes ? (
-                      <div className="mt-4 rounded-2xl border border-dashed border-[#e6dcd1] bg-[#fffdfb] px-4 py-3 text-sm text-[#6f6156]">
-                        <span className="font-medium text-gray-900">Σημείωση:</span>{' '}
-                        {order.notes}
+                        <p className="shrink-0 text-sm font-semibold text-gray-900">
+                          {formatCurrency(item.line_total)}
+                        </p>
                       </div>
-                    ) : null}
-                  </>
-                )}
+                    </div>
+                  ))}
+                </div>
+
+                {order.notes ? (
+                  <div className="mt-4 rounded-2xl border border-dashed border-[#e6dcd1] bg-[#fffdfb] px-4 py-3 text-sm text-[#6f6156]">
+                    <span className="font-medium text-gray-900">Σημείωση:</span>{' '}
+                    {order.notes}
+                  </div>
+                ) : null}
 
                 <div className="mt-5 flex flex-col gap-3">
                   {order.status !== 'completed' &&
@@ -458,7 +545,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                       type="button"
                       className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
                       onClick={() =>
-                        handleAdvance(String(order.id), order.status, serviceType)
+                        handleAdvance(String(order.id), order.status, null)
                       }
                     >
                       {nextActionLabel}

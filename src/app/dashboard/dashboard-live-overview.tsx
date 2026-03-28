@@ -41,7 +41,7 @@ function getServiceRequestType(notes?: string | null): ServiceRequestType | null
 }
 
 function getServiceRequestLabel(type: ServiceRequestType) {
-  return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Ζήτηση λογαριασμού'
+  return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Αίτημα λογαριασμού'
 }
 
 export function DashboardLiveOverview({
