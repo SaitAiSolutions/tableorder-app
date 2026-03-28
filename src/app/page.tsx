@@ -72,7 +72,7 @@ export default function HomePage() {
                   </Button>
                 </Link>
 
-                <Link href="/auth/signup">
+                <Link href="/demo">
                   <Button
                     variant="ghost"
                     className="rounded-2xl border border-[#d8cdc1] bg-white px-6 py-6 text-base text-[#5f5146] hover:bg-[#f8f3ee]"
@@ -191,6 +191,15 @@ export default function HomePage() {
                 className="rounded-2xl border border-[#d8cdc1] bg-white px-6 py-6 text-base text-[#5f5146] hover:bg-[#f8f3ee]"
               >
                 Έχω ήδη λογαριασμό
+              </Button>
+            </Link>
+
+            <Link href="/demo">
+              <Button
+                variant="ghost"
+                className="rounded-2xl border border-[#d8cdc1] bg-white px-6 py-6 text-base text-[#5f5146] hover:bg-[#f8f3ee]"
+              >
+                Δες demo
               </Button>
             </Link>
           </div>

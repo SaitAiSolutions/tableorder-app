@@ -61,6 +61,16 @@ export default function LoginPage() {
           </form>
         </div>
 
+        <div className="mt-4 rounded-xl border border-[#e8ddd2] bg-white p-4 text-center shadow-sm">
+          <p className="text-sm text-[#6f6156]">Θέλετε πρώτα να δείτε πώς λειτουργεί;</p>
+          <Link
+            href="/demo"
+            className="mt-3 inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+          >
+            Δες demo
+          </Link>
+        </div>
+
         <p className="mt-6 text-center text-sm text-gray-500">
           Δεν έχετε λογαριασμό;{' '}
           <Link
