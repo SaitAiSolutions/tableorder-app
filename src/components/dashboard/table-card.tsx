@@ -13,13 +13,24 @@ import {
   updateTable,
 } from '@/lib/actions/tables.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
-import type { TableWithActiveSession } from '@/types/database.types'
+import type { ServiceRequestType, TableWithActiveSession } from '@/types/database.types'
 
 interface TableCardProps {
   table: TableWithActiveSession
   businessSlug: string
   currency: string
   appUrl: string
+}
+
+const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
+
+function getServiceRequestType(notes?: string | null): ServiceRequestType | null {
+  if (!notes?.startsWith(SERVICE_REQUEST_PREFIX)) return null
+
+  const value = notes.replace(SERVICE_REQUEST_PREFIX, '').trim()
+
+  if (value === 'waiter' || value === 'bill') return value
+  return null
 }
 
 export function TableCard({
@@ -37,12 +48,64 @@ export function TableCard({
   const [tableName, setTableName] = useState(table.name ?? '')
 
   const occupied = !!table.active_session
-  const activeOrders =
-    table.active_session?.orders?.filter(
-      (o) => o.status !== 'completed' && o.status !== 'cancelled',
-    ).length ?? 0
 
+  const regularOrders =
+    table.active_session?.orders?.filter(
+      (o) =>
+        !getServiceRequestType(o.notes) &&
+        o.status !== 'completed' &&
+        o.status !== 'cancelled',
+    ) ?? []
+
+  const serviceRequests =
+    table.active_session?.orders?.filter(
+      (o) =>
+        !!getServiceRequestType(o.notes) &&
+        o.status !== 'completed' &&
+        o.status !== 'cancelled',
+    ) ?? []
+
+  const activeOrders = regularOrders.length
+  const activeServiceRequests = serviceRequests.length
   const total = table.active_session?.session_total ?? 0
+
+  const latestActivityAt = useMemo(() => {
+    const sessionStartedAt = table.active_session?.started_at
+    const orderDates =
+      table.active_session?.orders?.map((order) => order.created_at) ?? []
+
+    const values = [...orderDates]
+    if (sessionStartedAt) values.push(sessionStartedAt)
+
+    if (values.length === 0) return null
+
+    const latest = values
+      .map((value) => new Date(value).getTime())
+      .filter((value) => !Number.isNaN(value))
+      .sort((a, b) => b - a)[0]
+
+    if (!latest) return null
+
+    return new Date(latest).toLocaleString('el-GR')
+  }, [table.active_session])
+
+  const statusSummary = useMemo(() => {
+    if (!occupied) return 'Το τραπέζι είναι διαθέσιμο για νέα παραγγελία.'
+
+    if (activeOrders > 0 && activeServiceRequests > 0) {
+      return `${activeOrders} ενεργές παραγγελίες · ${activeServiceRequests} service requests`
+    }
+
+    if (activeOrders > 0) {
+      return `${activeOrders} ενεργές παραγγελίες`
+    }
+
+    if (activeServiceRequests > 0) {
+      return `${activeServiceRequests} service requests`
+    }
+
+    return 'Υπάρχει ενεργή συνεδρία χωρίς ανοιχτές παραγγελίες.'
+  }, [occupied, activeOrders, activeServiceRequests])
 
   const customerMenuUrl = useMemo(() => {
     const normalizedAppUrl = appUrl.replace(/\/$/, '')
@@ -225,10 +288,10 @@ export function TableCard({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
           <p className="text-xs uppercase tracking-[0.14em] text-[#8b715d]">
-            Ενεργές παραγγελίες
+            Παραγγελίες
           </p>
           <p className="mt-2 text-2xl font-semibold text-gray-900">
             {activeOrders}
@@ -237,7 +300,16 @@ export function TableCard({
 
         <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
           <p className="text-xs uppercase tracking-[0.14em] text-[#8b715d]">
-            Τρέχον σύνολο
+            Service
+          </p>
+          <p className="mt-2 text-2xl font-semibold text-gray-900">
+            {activeServiceRequests}
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-[#8b715d]">
+            Σύνολο
           </p>
           <p className="mt-2 text-2xl font-semibold text-gray-900">
             {formatCurrency(total, currency)}
@@ -246,53 +318,65 @@ export function TableCard({
       </div>
 
       {!isEditing ? (
-        <div className="mt-4 rounded-[20px] border border-[#e8ddd2] bg-[#fcfaf7] p-4">
-          <div className="flex items-start gap-4">
-            <div className="shrink-0 rounded-2xl bg-white p-3 shadow-sm">
-              <QRCodeSVG
-                id={`qr-${table.id}`}
-                value={customerMenuUrl}
-                size={110}
-                includeMargin
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900">
-                QR για customer menu
+        <>
+          <div className="mt-4 rounded-[20px] border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-3">
+            <p className="text-sm font-medium text-gray-900">Κατάσταση τραπεζιού</p>
+            <p className="mt-1 text-sm text-[#7b6657]">{statusSummary}</p>
+            {latestActivityAt ? (
+              <p className="mt-2 text-xs text-[#8b715d]">
+                Τελευταία δραστηριότητα: {latestActivityAt}
               </p>
-              <p className="mt-1 break-all text-xs leading-5 text-[#7b6657]">
-                {customerMenuUrl}
-              </p>
+            ) : null}
+          </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link
-                  href={customerMenuUrl}
-                  target="_blank"
-                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
-                >
-                  Άνοιγμα menu
-                </Link>
+          <div className="mt-4 rounded-[20px] border border-[#e8ddd2] bg-[#fcfaf7] p-4">
+            <div className="flex items-start gap-4">
+              <div className="shrink-0 rounded-2xl bg-white p-3 shadow-sm">
+                <QRCodeSVG
+                  id={`qr-${table.id}`}
+                  value={customerMenuUrl}
+                  size={110}
+                  includeMargin
+                />
+              </div>
 
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
-                >
-                  Αντιγραφή link
-                </button>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-gray-900">
+                  QR για customer menu
+                </p>
+                <p className="mt-1 break-all text-xs leading-5 text-[#7b6657]">
+                  {customerMenuUrl}
+                </p>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadQr}
-                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
-                >
-                  Λήψη QR
-                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    href={customerMenuUrl}
+                    target="_blank"
+                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                  >
+                    Άνοιγμα menu
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                  >
+                    Αντιγραφή link
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadQr}
+                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                  >
+                    Λήψη QR
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -330,7 +414,7 @@ export function TableCard({
               }}
               disabled={isPending}
             >
-              Edit
+              Επεξεργασία
             </Button>
 
             {occupied ? (
