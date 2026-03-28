@@ -87,15 +87,41 @@ export async function getTablesWithSessions(
     .select(`
       *,
       table_sessions (
-        id, status, is_active, started_at, cleared_at, created_at,
+        id,
+        status,
+        is_active,
+        started_at,
+        cleared_at,
+        created_at,
         orders (
-          id, status, total_amount, notes, created_at, updated_at,
+          id,
+          business_id,
+          table_id,
+          table_session_id,
+          status,
+          notes,
+          total_amount,
+          created_at,
+          updated_at,
           order_items (
-            id, product_name_snapshot_el, product_name_snapshot_en,
-            unit_price, quantity, line_total,
+            id,
+            business_id,
+            order_id,
+            product_id,
+            product_name_snapshot_el,
+            product_name_snapshot_en,
+            unit_price,
+            quantity,
+            line_total,
             order_item_options (
-              id, option_group_name_el, option_group_name_en,
-              option_choice_name_el, option_choice_name_en, price_delta
+              id,
+              business_id,
+              order_item_id,
+              option_group_name_el,
+              option_group_name_en,
+              option_choice_name_el,
+              option_choice_name_en,
+              price_delta
             )
           )
         )
@@ -103,31 +129,41 @@ export async function getTablesWithSessions(
     `)
     .eq('business_id', resolvedBusinessId)
     .eq('is_active', true)
-    .eq('table_sessions.is_active', true)
     .order('table_number')
 
   if (error) return { data: null, error: error.message }
 
   const enriched: TableWithActiveSession[] = (data ?? []).map((table: any) => {
-    const sessions = (table.table_sessions ?? []) as any[]
-    const session = sessions[0] ?? null
+    const sessions = Array.isArray(table.table_sessions) ? table.table_sessions : []
 
-    if (!session) return { ...table, active_session: null }
+    const activeRawSession =
+      sessions.find((session) => session?.is_active === true) ?? null
 
-    const orders = (session.orders ?? []) as OrderWithItems[]
+    if (!activeRawSession) {
+      return {
+        ...table,
+        active_session: null,
+      }
+    }
+
+    const orders = (activeRawSession.orders ?? []) as OrderWithItems[]
+
     const session_total = orders
       .filter((o) => o.status !== 'cancelled')
-      .reduce((sum, o) => sum + (o.total_amount ?? 0), 0)
+      .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0)
 
     const active_session: SessionWithOrders = {
-      ...session,
+      ...activeRawSession,
       business_id: table.business_id,
       table_id: table.id,
       orders,
       session_total,
     }
 
-    return { ...table, active_session }
+    return {
+      ...table,
+      active_session,
+    }
   })
 
   return { data: enriched, error: null }
@@ -158,7 +194,7 @@ export async function getSessionDetail(
   const orders = (data.orders ?? []) as OrderWithItems[]
   const session_total = orders
     .filter((o) => o.status !== 'cancelled')
-    .reduce((sum, o) => sum + o.total_amount, 0)
+    .reduce((sum, o) => sum + Number(o.total_amount ?? 0), 0)
 
   return {
     data: { ...data, orders, session_total } as SessionWithOrders,

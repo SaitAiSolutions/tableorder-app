@@ -6,6 +6,7 @@ import {
   getAdminBusinesses,
   isCurrentUserSuperAdmin,
 } from '@/lib/actions/business.actions'
+import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 
 function getStatusLabel(status?: string | null) {
   if (status === 'trialing') return 'Trial'
@@ -91,111 +92,119 @@ export default async function AdminPage() {
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
-            {businesses.map((business) => {
-              const looksLikeDemo =
-                business.name.toLowerCase().includes('demo') ||
-                business.slug.toLowerCase().includes('demo')
+            {await Promise.all(
+              businesses.map(async (business) => {
+                const looksLikeDemo =
+                  business.name.toLowerCase().includes('demo') ||
+                  business.slug.toLowerCase().includes('demo')
 
-              return (
-                <div
-                  key={business.id}
-                  className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-                          {business.name}
-                        </h3>
+                const { data: tables } = await getTablesWithSessions(business.id)
+                const firstTable = tables?.[0] ?? null
+                const customerMenuHref = firstTable
+                  ? `/menu/${business.slug}/${firstTable.id}`
+                  : '/dashboard/tables'
 
-                        {looksLikeDemo ? (
-                          <span className="rounded-full bg-[#f5efe7] px-3 py-1 text-xs font-medium text-[#7b6657]">
-                            Demo
-                          </span>
-                        ) : null}
+                return (
+                  <div
+                    key={business.id}
+                    className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-xl font-semibold tracking-tight text-gray-900">
+                            {business.name}
+                          </h3>
+
+                          {looksLikeDemo ? (
+                            <span className="rounded-full bg-[#f5efe7] px-3 py-1 text-xs font-medium text-[#7b6657]">
+                              Demo
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <p className="mt-2 text-sm text-[#7b6657]">
+                          /menu/{business.slug}
+                        </p>
+                        <p className="mt-1 text-sm text-[#8b715d]">
+                          Owner: {business.owner_email || '—'}
+                        </p>
                       </div>
 
-                      <p className="mt-2 text-sm text-[#7b6657]">
-                        /menu/{business.slug}
-                      </p>
-                      <p className="mt-1 text-sm text-[#8b715d]">
-                        Owner: {business.owner_email || '—'}
-                      </p>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+                        <Building2 className="h-5 w-5" />
+                      </div>
                     </div>
 
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
-                      <Building2 className="h-5 w-5" />
-                    </div>
-                  </div>
+                    <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Status
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-gray-900">
+                          {getStatusLabel(business.account_status)}
+                        </p>
+                      </div>
 
-                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                        Status
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-gray-900">
-                        {getStatusLabel(business.account_status)}
-                      </p>
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Subscription
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-gray-900">
+                          {getStatusLabel(business.subscription_status)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Plan
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-gray-900">
+                          {getPlanLabel(business.subscription_plan)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Τραπέζια
+                        </p>
+                        <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          <Table2 className="h-4 w-4 text-[#8b715d]" />
+                          {business.tables_count}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                        Subscription
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-gray-900">
-                        {getStatusLabel(business.subscription_status)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                        Plan
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-gray-900">
-                        {getPlanLabel(business.subscription_plan)}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                        Τραπέζια
-                      </p>
-                      <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                        <Table2 className="h-4 w-4 text-[#8b715d]" />
-                        {business.tables_count}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <form
-                      action={async () => {
-                        'use server'
-                        const result = await adminSelectBusiness(business.id)
-                        if (!result.error) {
-                          redirect('/dashboard')
-                        }
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <form
+                        action={async () => {
+                          'use server'
+                          const result = await adminSelectBusiness(business.id)
+                          if (!result.error) {
+                            redirect('/dashboard')
+                          }
+                        }}
                       >
-                        <LogIn className="h-4 w-4" />
-                        Άνοιγμα dashboard
-                      </button>
-                    </form>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                        >
+                          <LogIn className="h-4 w-4" />
+                          Άνοιγμα dashboard
+                        </button>
+                      </form>
 
-                    <a
-                      href={`/menu/${business.slug}`}
-                      className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
-                    >
-                      Άνοιγμα public menu slug
-                    </a>
+                      <a
+                        href={customerMenuHref}
+                        className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+                      >
+                        {firstTable ? 'Άνοιγμα customer menu' : 'Άνοιγμα τραπεζιών'}
+                      </a>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              }),
+            )}
           </div>
         )}
       </div>
