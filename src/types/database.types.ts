@@ -29,6 +29,8 @@ export type OrderStatus =
   | 'completed'
   | 'cancelled'
 
+export type ServiceRequestType = 'waiter' | 'bill'
+
 export type SessionStatus = 'active' | 'cleared'
 export type Language = 'el' | 'en'
 

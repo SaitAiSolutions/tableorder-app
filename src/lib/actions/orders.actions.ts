@@ -9,11 +9,18 @@ import type {
   OrderWithItems,
   PlaceOrderParams,
   PlaceOrderResult,
+  ServiceRequestType,
 } from '@/types/database.types'
 
 interface ActionResult<T = null> {
   data: T | null
   error: string | null
+}
+
+const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
+
+function getServiceRequestNote(type: ServiceRequestType) {
+  return `${SERVICE_REQUEST_PREFIX}${type}`
 }
 
 async function resolveCurrentBusinessId() {
@@ -40,32 +47,23 @@ async function resolveCurrentBusinessId() {
   return { businessId: row.business_id, error: null }
 }
 
-export async function placeOrder(
-  params: PlaceOrderParams,
-): Promise<ActionResult<PlaceOrderResult>> {
+async function ensureBusinessCanReceiveOrders(
+  businessId: string,
+) {
   const admin = createAdminClient()
 
   const { data: businessRow, error: businessError } = await admin
     .from('businesses')
     .select('id, account_status, trial_ends_at, subscription_status, is_active')
-    .eq('id', params.p_business_id)
+    .eq('id', businessId)
     .eq('is_active', true)
     .single()
 
   if (businessError || !businessRow) {
-    return { data: null, error: 'Η επιχείρηση δεν είναι διαθέσιμη.' }
-  }
-
-  const { data: tableRow, error: tableError } = await admin
-    .from('tables')
-    .select('id, business_id, is_active')
-    .eq('id', params.p_table_id)
-    .eq('business_id', params.p_business_id)
-    .eq('is_active', true)
-    .single()
-
-  if (tableError || !tableRow) {
-    return { data: null, error: 'Το τραπέζι δεν είναι διαθέσιμο.' }
+    return {
+      ok: false as const,
+      error: 'Η επιχείρηση δεν είναι διαθέσιμη.',
+    }
   }
 
   const accountStatus = String(businessRow.account_status ?? '')
@@ -91,16 +89,179 @@ export async function placeOrder(
   if (!canUse) {
     if (accountStatus === 'suspended') {
       return {
-        data: null,
+        ok: false as const,
         error: 'Η επιχείρηση δεν δέχεται παραγγελίες αυτή τη στιγμή.',
       }
     }
 
     return {
-      data: null,
+      ok: false as const,
       error: 'Η επιχείρηση δεν είναι διαθέσιμη αυτή τη στιγμή.',
     }
   }
+
+  return {
+    ok: true as const,
+    admin,
+  }
+}
+
+async function ensureActiveTable(
+  businessId: string,
+  tableId: string,
+) {
+  const admin = createAdminClient()
+
+  const { data: tableRow, error: tableError } = await admin
+    .from('tables')
+    .select('id, business_id, is_active')
+    .eq('id', tableId)
+    .eq('business_id', businessId)
+    .eq('is_active', true)
+    .single()
+
+  if (tableError || !tableRow) {
+    return {
+      ok: false as const,
+      error: 'Το τραπέζι δεν είναι διαθέσιμο.',
+    }
+  }
+
+  return {
+    ok: true as const,
+  }
+}
+
+async function getOrCreateActiveSession(
+  businessId: string,
+  tableId: string,
+) {
+  const admin = createAdminClient()
+
+  const { data: existingSession, error: existingSessionError } = await admin
+    .from('table_sessions')
+    .select('id')
+    .eq('business_id', businessId)
+    .eq('table_id', tableId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (existingSessionError) {
+    return { sessionId: null, error: existingSessionError.message }
+  }
+
+  if (existingSession?.id) {
+    return { sessionId: existingSession.id, error: null }
+  }
+
+  const { data: createdSession, error: createSessionError } = await admin
+    .from('table_sessions')
+    .insert({
+      business_id: businessId,
+      table_id: tableId,
+      status: 'active',
+      is_active: true,
+      started_at: new Date().toISOString(),
+      cleared_at: null,
+    } as never)
+    .select('id')
+    .single()
+
+  if (createSessionError || !createdSession?.id) {
+    return {
+      sessionId: null,
+      error: createSessionError?.message ?? 'Αποτυχία δημιουργίας συνεδρίας τραπεζιού.',
+    }
+  }
+
+  return { sessionId: createdSession.id, error: null }
+}
+
+async function createServiceRequest(
+  businessId: string,
+  tableId: string,
+  type: ServiceRequestType,
+): Promise<ActionResult<{ order_id: string }>> {
+  const businessCheck = await ensureBusinessCanReceiveOrders(businessId)
+
+  if (!businessCheck.ok) {
+    return { data: null, error: businessCheck.error }
+  }
+
+  const tableCheck = await ensureActiveTable(businessId, tableId)
+
+  if (!tableCheck.ok) {
+    return { data: null, error: tableCheck.error }
+  }
+
+  const { sessionId, error: sessionError } = await getOrCreateActiveSession(
+    businessId,
+    tableId,
+  )
+
+  if (sessionError || !sessionId) {
+    return { data: null, error: sessionError ?? 'Αποτυχία συνεδρίας τραπεζιού.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from('orders')
+    .insert({
+      business_id: businessId,
+      table_id: tableId,
+      table_session_id: sessionId,
+      status: 'new',
+      notes: getServiceRequestNote(type),
+      total_amount: 0,
+    } as never)
+    .select('id')
+    .single()
+
+  if (error || !data?.id) {
+    return {
+      data: null,
+      error: error?.message ?? 'Αποτυχία καταχώρησης αιτήματος.',
+    }
+  }
+
+  revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard/tables')
+  revalidatePath('/dashboard', 'layout')
+
+  return { data: { order_id: data.id }, error: null }
+}
+
+export async function requestWaiter(
+  businessId: string,
+  tableId: string,
+): Promise<ActionResult<{ order_id: string }>> {
+  return createServiceRequest(businessId, tableId, 'waiter')
+}
+
+export async function requestBill(
+  businessId: string,
+  tableId: string,
+): Promise<ActionResult<{ order_id: string }>> {
+  return createServiceRequest(businessId, tableId, 'bill')
+}
+
+export async function placeOrder(
+  params: PlaceOrderParams,
+): Promise<ActionResult<PlaceOrderResult>> {
+  const businessCheck = await ensureBusinessCanReceiveOrders(params.p_business_id)
+
+  if (!businessCheck.ok) {
+    return { data: null, error: businessCheck.error }
+  }
+
+  const tableCheck = await ensureActiveTable(params.p_business_id, params.p_table_id)
+
+  if (!tableCheck.ok) {
+    return { data: null, error: tableCheck.error }
+  }
+
+  const admin = createAdminClient()
 
   await admin.rpc('set_current_business' as never, {
     p_id: params.p_business_id,

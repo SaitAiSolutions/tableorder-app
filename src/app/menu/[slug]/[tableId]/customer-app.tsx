@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { BellRing, ReceiptText } from 'lucide-react'
 import { CategoryNav } from '@/components/customer/category-nav'
 import { ProductGrid } from '@/components/customer/product-grid'
 import { CartBar } from '@/components/customer/cart-bar'
@@ -8,12 +9,17 @@ import { CartSheet } from '@/components/customer/cart-sheet'
 import { OrderConfirmation } from '@/components/customer/order-confirmation'
 import { ErrorMessage } from '@/components/ui/error-message'
 import { Button } from '@/components/ui/button'
-import { placeOrder } from '@/lib/actions/orders.actions'
+import {
+  placeOrder,
+  requestBill,
+  requestWaiter,
+} from '@/lib/actions/orders.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import type {
   CartItem,
   CategoryWithProducts,
   CustomerMenuData,
+  ServiceRequestType,
 } from '@/types/database.types'
 
 interface CustomerAppProps {
@@ -29,6 +35,9 @@ export function CustomerApp({ data }: CustomerAppProps) {
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [serviceMessage, setServiceMessage] = useState<string | null>(null)
+  const [serviceSubmitting, setServiceSubmitting] =
+    useState<ServiceRequestType | null>(null)
   const [orderNotes, setOrderNotes] = useState('')
 
   const [optionProduct, setOptionProduct] = useState<
@@ -215,6 +224,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
 
     setSubmitting(true)
     setSubmitError(null)
+    setServiceMessage(null)
 
     const result = await placeOrder({
       p_business_id: data.business.id,
@@ -238,6 +248,32 @@ export function CustomerApp({ data }: CustomerAppProps) {
     setOrderNotes('')
     setCartOpen(false)
     setConfirmationOpen(true)
+  }
+
+  async function handleServiceRequest(type: ServiceRequestType) {
+    setSubmitError(null)
+    setServiceMessage(null)
+    setServiceSubmitting(type)
+
+    const action =
+      type === 'waiter'
+        ? requestWaiter(data.business.id, data.table.id)
+        : requestBill(data.business.id, data.table.id)
+
+    const result = await action
+
+    setServiceSubmitting(null)
+
+    if (result.error) {
+      setSubmitError(result.error)
+      return
+    }
+
+    setServiceMessage(
+      type === 'waiter'
+        ? 'Η κλήση σερβιτόρου στάλθηκε επιτυχώς.'
+        : 'Το αίτημα για λογαριασμό στάλθηκε επιτυχώς.',
+    )
   }
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
@@ -283,6 +319,64 @@ export function CustomerApp({ data }: CustomerAppProps) {
             <ErrorMessage message={submitError} />
           </div>
         ) : null}
+
+        {serviceMessage ? (
+          <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {serviceMessage}
+          </div>
+        ) : null}
+
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => handleServiceRequest('waiter')}
+            disabled={serviceSubmitting !== null}
+            className="flex items-center justify-between rounded-[24px] border border-[#e7ddd3] bg-white px-5 py-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:bg-[#fcfaf7] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                <BellRing className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-gray-900">
+                  Κλήση σερβιτόρου
+                </p>
+                <p className="mt-1 text-sm text-[#7b6657]">
+                  Στείλτε ειδοποίηση στο προσωπικό για το τραπέζι σας.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white">
+              {serviceSubmitting === 'waiter' ? 'Αποστολή...' : 'Κλήση'}
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleServiceRequest('bill')}
+            disabled={serviceSubmitting !== null}
+            className="flex items-center justify-between rounded-[24px] border border-[#e7ddd3] bg-white px-5 py-4 text-left shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition hover:bg-[#fcfaf7] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                <ReceiptText className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-gray-900">
+                  Ζήτηση λογαριασμού
+                </p>
+                <p className="mt-1 text-sm text-[#7b6657]">
+                  Στείλτε αίτημα για λογαριασμό στο προσωπικό.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white">
+              {serviceSubmitting === 'bill' ? 'Αποστολή...' : 'Αίτημα'}
+            </div>
+          </button>
+        </div>
 
         <div className="rounded-[24px] border border-black/5 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)] sm:p-5">
           <CategoryNav

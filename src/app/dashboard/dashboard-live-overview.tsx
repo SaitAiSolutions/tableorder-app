@@ -1,11 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, BellRing, ReceiptText } from 'lucide-react'
 import { useMemo } from 'react'
 import { useRealtimeOrders } from '@/hooks/use-realtime-orders'
 import { formatCurrency } from '@/lib/utils/format-currency'
-import type { OrderWithItems } from '@/types/database.types'
+import type {
+  OrderWithItems,
+  ServiceRequestType,
+} from '@/types/database.types'
 
 interface DashboardLiveOverviewProps {
   initialOrders: OrderWithItems[]
@@ -26,6 +29,21 @@ type OrderWithOptionalTable = OrderWithItems & {
   } | null
 }
 
+const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
+
+function getServiceRequestType(notes?: string | null): ServiceRequestType | null {
+  if (!notes?.startsWith(SERVICE_REQUEST_PREFIX)) return null
+
+  const value = notes.replace(SERVICE_REQUEST_PREFIX, '').trim()
+
+  if (value === 'waiter' || value === 'bill') return value
+  return null
+}
+
+function getServiceRequestLabel(type: ServiceRequestType) {
+  return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Ζήτηση λογαριασμού'
+}
+
 export function DashboardLiveOverview({
   initialOrders,
   currency,
@@ -44,6 +62,7 @@ export function DashboardLiveOverview({
   }, [activeOrders])
 
   if (latestActiveOrder) {
+    const serviceType = getServiceRequestType(latestActiveOrder.notes)
     const tableNumber = latestActiveOrder.table?.table_number
     const tableName = latestActiveOrder.table?.name?.trim()
     const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
@@ -54,10 +73,10 @@ export function DashboardLiveOverview({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-              Live order
+              Live activity
             </p>
             <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-              Νέα ενεργή παραγγελία
+              {serviceType ? getServiceRequestLabel(serviceType) : 'Νέα ενεργή παραγγελία'}
             </h3>
             <p className="mt-3 text-sm leading-6 text-[#7b6657]">
               {tableSubtitle}
@@ -67,34 +86,57 @@ export function DashboardLiveOverview({
           <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#8b715d]" />
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-              Status
-            </p>
-            <p className="mt-2 text-lg font-semibold text-gray-900">
-              {latestActiveOrder.status}
-            </p>
-          </div>
+        {serviceType ? (
+          <div className="mt-5 rounded-[22px] border border-[#eadfd3] bg-[#fcfaf7] p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                {serviceType === 'waiter' ? (
+                  <BellRing className="h-5 w-5" />
+                ) : (
+                  <ReceiptText className="h-5 w-5" />
+                )}
+              </div>
 
-          <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-              Είδη
-            </p>
-            <p className="mt-2 text-lg font-semibold text-gray-900">
-              {latestActiveOrder.order_items?.length ?? 0}
-            </p>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  Το τραπέζι ζητά εξυπηρέτηση
+                </p>
+                <p className="mt-1 text-sm text-[#7b6657]">
+                  Ανοίξτε τις παραγγελίες για να ολοκληρώσετε το αίτημα.
+                </p>
+              </div>
+            </div>
           </div>
+        ) : (
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                Status
+              </p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                {latestActiveOrder.status}
+              </p>
+            </div>
 
-          <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-              Σύνολο
-            </p>
-            <p className="mt-2 text-lg font-semibold text-gray-900">
-              {formatCurrency(latestActiveOrder.total_amount, currency)}
-            </p>
+            <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                Είδη
+              </p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                {latestActiveOrder.order_items?.length ?? 0}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                Σύνολο
+              </p>
+              <p className="mt-2 text-lg font-semibold text-gray-900">
+                {formatCurrency(latestActiveOrder.total_amount, currency)}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-6">
           <Link

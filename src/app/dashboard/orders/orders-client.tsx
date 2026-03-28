@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
+import { BellRing, ReceiptText } from 'lucide-react'
 import { cancelOrder, updateOrderStatus } from '@/lib/actions/orders.actions'
 import { clearTable } from '@/lib/actions/tables.actions'
 import { useRealtimeOrders } from '@/hooks/use-realtime-orders'
 import { formatCurrency } from '@/lib/utils/format-currency'
-import type { OrderWithItems } from '@/types/database.types'
+import type { OrderWithItems, ServiceRequestType } from '@/types/database.types'
 
 interface OrdersClientProps {
   initialOrders: OrderWithItems[]
@@ -28,6 +29,18 @@ type FilterKey =
   | 'ready'
   | 'completed'
   | 'cancelled'
+  | 'service'
+
+const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
+
+function getServiceRequestType(notes?: string | null): ServiceRequestType | null {
+  if (!notes?.startsWith(SERVICE_REQUEST_PREFIX)) return null
+
+  const value = notes.replace(SERVICE_REQUEST_PREFIX, '').trim()
+
+  if (value === 'waiter' || value === 'bill') return value
+  return null
+}
 
 function getStatusLabel(status: OrderWithItems['status']) {
   if (status === 'new') return 'Νέα'
@@ -57,7 +70,11 @@ function getNextStatus(status: OrderWithItems['status']) {
   return status
 }
 
-function getNextActionLabel(status: OrderWithItems['status']) {
+function getNextActionLabel(
+  status: OrderWithItems['status'],
+  serviceType: ServiceRequestType | null,
+) {
+  if (serviceType) return 'Ολοκλήρωση αιτήματος'
   if (status === 'new') return 'Αποδοχή'
   if (status === 'accepted') return 'Έναρξη προετοιμασίας'
   if (status === 'preparing') return 'Έτοιμη'
@@ -85,6 +102,10 @@ function getElapsedLabel(createdAt: string) {
   return `${days} ημέρ. πριν`
 }
 
+function getServiceRequestLabel(type: ServiceRequestType) {
+  return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Ζήτηση λογαριασμού'
+}
+
 export function OrdersClient({ initialOrders }: OrdersClientProps) {
   const { orders: realtimeOrders } = useRealtimeOrders(initialOrders)
 
@@ -105,9 +126,13 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
     )
   }
 
-  function handleAdvance(orderId: string, currentStatus: OrderWithItems['status']) {
-    const nextStatus = getNextStatus(currentStatus)
-    if (nextStatus === currentStatus) return
+  function handleAdvance(
+    orderId: string,
+    currentStatus: OrderWithItems['status'],
+    serviceType: ServiceRequestType | null,
+  ) {
+    const nextStatus = serviceType ? 'completed' : getNextStatus(currentStatus)
+    if (nextStatus === currentStatus && !serviceType) return
 
     startTransition(async () => {
       setMessage(null)
@@ -115,7 +140,11 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
 
       if (!result.error) {
         patchOrder(orderId, nextStatus)
-        setMessage('Η παραγγελία ενημερώθηκε.')
+        setMessage(
+          serviceType
+            ? 'Το αίτημα ολοκληρώθηκε.'
+            : 'Η παραγγελία ενημερώθηκε.',
+        )
       }
     })
   }
@@ -161,17 +190,23 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
   }
 
   const counts = useMemo(() => {
+    const serviceOrders = orders.filter((o) => !!getServiceRequestType(o.notes))
+    const regularOrders = orders.filter((o) => !getServiceRequestType(o.notes))
+
     return {
       all: orders.length,
       active: orders.filter(
         (o) => o.status !== 'completed' && o.status !== 'cancelled',
       ).length,
-      new: orders.filter((o) => o.status === 'new').length,
-      accepted: orders.filter((o) => o.status === 'accepted').length,
-      preparing: orders.filter((o) => o.status === 'preparing').length,
-      ready: orders.filter((o) => o.status === 'ready').length,
+      new: regularOrders.filter((o) => o.status === 'new').length,
+      accepted: regularOrders.filter((o) => o.status === 'accepted').length,
+      preparing: regularOrders.filter((o) => o.status === 'preparing').length,
+      ready: regularOrders.filter((o) => o.status === 'ready').length,
       completed: orders.filter((o) => o.status === 'completed').length,
       cancelled: orders.filter((o) => o.status === 'cancelled').length,
+      service: serviceOrders.filter(
+        (o) => o.status !== 'completed' && o.status !== 'cancelled',
+      ).length,
     }
   }, [orders])
 
@@ -184,11 +219,25 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
       )
     }
 
-    return orders.filter((o) => o.status === activeFilter)
+    if (activeFilter === 'service') {
+      return orders.filter(
+        (o) =>
+          !!getServiceRequestType(o.notes) &&
+          o.status !== 'completed' &&
+          o.status !== 'cancelled',
+      )
+    }
+
+    return orders.filter(
+      (o) =>
+        !getServiceRequestType(o.notes) &&
+        o.status === activeFilter,
+    )
   }, [orders, activeFilter])
 
   const filters: Array<{ key: FilterKey; label: string; count: number }> = [
     { key: 'active', label: 'Ενεργές', count: counts.active },
+    { key: 'service', label: 'Service', count: counts.service },
     { key: 'new', label: 'Νέες', count: counts.new },
     { key: 'accepted', label: 'Accepted', count: counts.accepted },
     { key: 'preparing', label: 'Preparing', count: counts.preparing },
@@ -259,6 +308,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
         <div className="grid gap-4 xl:grid-cols-2">
           {filteredOrders.map((order) => {
             const safeOrder = order as OrderWithOptionalTable
+            const serviceType = getServiceRequestType(order.notes)
             const totalItems =
               order.order_items?.reduce(
                 (sum, item) => sum + Number(item.quantity ?? 0),
@@ -269,7 +319,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
             const tableName = safeOrder.table?.name?.trim()
             const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
             const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
-            const nextActionLabel = getNextActionLabel(order.status)
+            const nextActionLabel = getNextActionLabel(order.status, serviceType)
 
             return (
               <div
@@ -303,77 +353,102 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                   </span>
                 </div>
 
-                <div className="mb-4 grid grid-cols-3 gap-3">
-                  <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                      Είδη
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-gray-900">
-                      {totalItems}
-                    </p>
-                  </div>
+                {serviceType ? (
+                  <div className="rounded-[24px] border border-[#eadfd3] bg-[#fcfaf7] p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                        {serviceType === 'waiter' ? (
+                          <BellRing className="h-5 w-5" />
+                        ) : (
+                          <ReceiptText className="h-5 w-5" />
+                        )}
+                      </div>
 
-                  <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                      Γραμμές
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-gray-900">
-                      {order.order_items?.length ?? 0}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
-                      Σύνολο
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-gray-900">
-                      {formatCurrency(order.total_amount)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {order.order_items?.map((item) => (
-                    <div
-                      key={String(item.id)}
-                      className="rounded-2xl border border-[#f0e8df] bg-[#faf7f2] px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900">
-                            {item.quantity}× {item.product_name_snapshot_el}
-                          </p>
-
-                          {item.order_item_options &&
-                          item.order_item_options.length > 0 ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {item.order_item_options.map((option) => (
-                                <span
-                                  key={String(option.id)}
-                                  className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
-                                >
-                                  {option.option_group_name_el}:{' '}
-                                  {option.option_choice_name_el}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <p className="shrink-0 text-sm font-semibold text-gray-900">
-                          {formatCurrency(item.line_total)}
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {getServiceRequestLabel(serviceType)}
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Αίτημα εξυπηρέτησης από το τραπέζι.
                         </p>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {order.notes ? (
-                  <div className="mt-4 rounded-2xl border border-dashed border-[#e6dcd1] bg-[#fffdfb] px-4 py-3 text-sm text-[#6f6156]">
-                    <span className="font-medium text-gray-900">Σημείωση:</span>{' '}
-                    {order.notes}
                   </div>
-                ) : null}
+                ) : (
+                  <>
+                    <div className="mb-4 grid grid-cols-3 gap-3">
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Είδη
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-gray-900">
+                          {totalItems}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Γραμμές
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-gray-900">
+                          {order.order_items?.length ?? 0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                          Σύνολο
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-gray-900">
+                          {formatCurrency(order.total_amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {order.order_items?.map((item) => (
+                        <div
+                          key={String(item.id)}
+                          className="rounded-2xl border border-[#f0e8df] bg-[#faf7f2] px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">
+                                {item.quantity}× {item.product_name_snapshot_el}
+                              </p>
+
+                              {item.order_item_options &&
+                              item.order_item_options.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {item.order_item_options.map((option) => (
+                                    <span
+                                      key={String(option.id)}
+                                      className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#6f6156] shadow-sm"
+                                    >
+                                      {option.option_group_name_el}:{' '}
+                                      {option.option_choice_name_el}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <p className="shrink-0 text-sm font-semibold text-gray-900">
+                              {formatCurrency(item.line_total)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {order.notes ? (
+                      <div className="mt-4 rounded-2xl border border-dashed border-[#e6dcd1] bg-[#fffdfb] px-4 py-3 text-sm text-[#6f6156]">
+                        <span className="font-medium text-gray-900">Σημείωση:</span>{' '}
+                        {order.notes}
+                      </div>
+                    ) : null}
+                  </>
+                )}
 
                 <div className="mt-5 flex flex-col gap-3">
                   {order.status !== 'completed' &&
@@ -382,7 +457,9 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                     <button
                       type="button"
                       className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
-                      onClick={() => handleAdvance(String(order.id), order.status)}
+                      onClick={() =>
+                        handleAdvance(String(order.id), order.status, serviceType)
+                      }
                     >
                       {nextActionLabel}
                     </button>

@@ -15,7 +15,19 @@ import { getOrdersByBusiness } from '@/lib/actions/orders.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import { getTrialStatus } from '@/lib/utils/trial'
+import type { ServiceRequestType } from '@/types/database.types'
 import { DashboardLiveOverview } from './dashboard-live-overview'
+
+const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
+
+function getServiceRequestType(notes?: string | null): ServiceRequestType | null {
+  if (!notes?.startsWith(SERVICE_REQUEST_PREFIX)) return null
+
+  const value = notes.replace(SERVICE_REQUEST_PREFIX, '').trim()
+
+  if (value === 'waiter' || value === 'bill') return value
+  return null
+}
 
 export default async function DashboardHomePage() {
   const { data: business } = await getCurrentBusiness()
@@ -80,7 +92,8 @@ export default async function DashboardHomePage() {
   const safeCategories = categories ?? []
   const safeProducts = products ?? []
 
-  const activeOrdersList = safeOrders.filter(
+  const regularOrders = safeOrders.filter((o) => !getServiceRequestType(o.notes))
+  const activeOrdersList = regularOrders.filter(
     (o) => o.status !== 'completed' && o.status !== 'cancelled',
   )
 
@@ -88,7 +101,7 @@ export default async function DashboardHomePage() {
 
   const occupiedTables = safeTables.filter((table) => !!table.active_session).length
 
-  const todayRevenue = safeOrders
+  const todayRevenue = regularOrders
     .filter((o) => {
       const d = new Date(o.created_at)
       const now = new Date()
