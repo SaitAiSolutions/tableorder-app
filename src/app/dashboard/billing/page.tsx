@@ -5,6 +5,7 @@ import {
   CreditCard,
   ShieldCheck,
   Sparkles,
+  Layers3,
 } from 'lucide-react'
 import {
   createStripeCheckoutSession,
@@ -17,6 +18,7 @@ import { formatTrialEndDate, getTrialStatus } from '@/lib/utils/trial'
 function getPlanByTableCount(tableCount: number) {
   if (tableCount <= 15) {
     return {
+      key: 'starter',
       name: 'Starter',
       price: 15,
       description: 'Για επιχειρήσεις με έως 15 τραπέζια.',
@@ -25,6 +27,7 @@ function getPlanByTableCount(tableCount: number) {
 
   if (tableCount <= 25) {
     return {
+      key: 'growth',
       name: 'Growth',
       price: 25,
       description: 'Για επιχειρήσεις με 16 έως 25 τραπέζια.',
@@ -32,6 +35,7 @@ function getPlanByTableCount(tableCount: number) {
   }
 
   return {
+    key: 'pro',
     name: 'Pro',
     price: 35,
     description: 'Για επιχειρήσεις με πάνω από 25 τραπέζια.',
@@ -40,16 +44,19 @@ function getPlanByTableCount(tableCount: number) {
 
 const plans = [
   {
+    key: 'starter',
     name: 'Starter',
     price: 15,
     range: 'Έως 15 τραπέζια',
   },
   {
+    key: 'growth',
     name: 'Growth',
     price: 25,
     range: '16–25 τραπέζια',
   },
   {
+    key: 'pro',
     name: 'Pro',
     price: 35,
     range: '26+ τραπέζια',
@@ -62,6 +69,53 @@ function formatMoney(amount: number, currency = 'EUR') {
     currency,
     minimumFractionDigits: 2,
   }).format(amount)
+}
+
+function getSubscriptionPlanLabel(plan?: string | null) {
+  if (plan === 'starter') return 'Starter'
+  if (plan === 'growth') return 'Growth'
+  if (plan === 'pro') return 'Pro'
+  if (plan === 'trial') return 'Trial'
+  return '—'
+}
+
+function getAccountStatusLabel(
+  accountStatus?: string | null,
+  subscriptionStatus?: string | null,
+) {
+  if (accountStatus === 'suspended') return 'Ανεσταλμένος λογαριασμός'
+  if (subscriptionStatus === 'active') return 'Ενεργή συνδρομή'
+  if (subscriptionStatus === 'trialing') return 'Δωρεάν δοκιμή'
+  if (subscriptionStatus === 'past_due') return 'Σε καθυστέρηση πληρωμής'
+  if (subscriptionStatus === 'unpaid') return 'Ανεξόφλητη συνδρομή'
+  return 'Μη ενεργή συνδρομή'
+}
+
+function getSubscriptionDetails(
+  accountStatus?: string | null,
+  subscriptionStatus?: string | null,
+) {
+  if (accountStatus === 'suspended') {
+    return 'Η πρόσβαση έχει περιοριστεί μέχρι να εξοφληθούν οι εκκρεμότητες.'
+  }
+
+  if (subscriptionStatus === 'active') {
+    return 'Η συνδρομή σας είναι ενεργή και η εφαρμογή λειτουργεί κανονικά.'
+  }
+
+  if (subscriptionStatus === 'trialing') {
+    return 'Χρησιμοποιείτε τη δωρεάν δοκιμή πριν την ενεργοποίηση συνδρομής.'
+  }
+
+  if (subscriptionStatus === 'past_due') {
+    return 'Υπάρχει καθυστέρηση πληρωμής. Η πρόσβαση παραμένει προσωρινά ενεργή.'
+  }
+
+  if (subscriptionStatus === 'unpaid') {
+    return 'Υπάρχουν απλήρωτες χρεώσεις που χρειάζονται τακτοποίηση.'
+  }
+
+  return 'Δεν υπάρχει ενεργή πληρωμένη συνδρομή αυτή τη στιγμή.'
 }
 
 export default async function DashboardBillingPage() {
@@ -80,6 +134,7 @@ export default async function DashboardBillingPage() {
 
   const formattedTrialEndDate = formatTrialEndDate(business.trial_ends_at)
   const recommendedPlan = getPlanByTableCount(tableCount)
+  const currentPlanLabel = getSubscriptionPlanLabel(business.subscription_plan)
   const hasStripeCustomer = !!business.stripe_customer_id
   const hasActiveSubscription = business.subscription_status === 'active'
 
@@ -95,14 +150,20 @@ export default async function DashboardBillingPage() {
     ? new Date(business.grace_period_ends_at).toLocaleDateString('el-GR')
     : null
 
-  const planLabel =
-    business.subscription_status === 'active'
-      ? 'Ενεργή συνδρομή'
-      : business.subscription_status === 'trialing'
-        ? 'Δωρεάν δοκιμή'
-        : business.account_status === 'suspended'
-          ? 'Ανεσταλμένος λογαριασμός'
-          : 'Μη ενεργή συνδρομή'
+  const accountStatusLabel = getAccountStatusLabel(
+    business.account_status,
+    business.subscription_status,
+  )
+
+  const subscriptionDetails = getSubscriptionDetails(
+    business.account_status,
+    business.subscription_status,
+  )
+
+  const recommendedDiffersFromCurrent =
+    business.subscription_plan &&
+    business.subscription_plan !== 'trial' &&
+    business.subscription_plan !== recommendedPlan.key
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -114,8 +175,8 @@ export default async function DashboardBillingPage() {
           Χρέωση & Συνδρομή
         </h2>
         <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Δείτε την κατάσταση του trial σας, το προτεινόμενο πακέτο και την
-          πολιτική χρέωσης της εφαρμογής.
+          Δείτε την κατάσταση του trial σας, το τρέχον πακέτο, το προτεινόμενο
+          πακέτο και την πολιτική χρέωσης της εφαρμογής.
         </p>
       </div>
 
@@ -167,14 +228,30 @@ export default async function DashboardBillingPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
             <Sparkles className="h-5 w-5" />
           </div>
           <p className="text-sm text-[#7b6657]">Κατάσταση</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-            {planLabel}
+            {accountStatusLabel}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[#8b715d]">
+            {subscriptionDetails}
+          </p>
+        </div>
+
+        <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+            <Layers3 className="h-5 w-5" />
+          </div>
+          <p className="text-sm text-[#7b6657]">Τρέχον πακέτο</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
+            {currentPlanLabel}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[#8b715d]">
+            Αυτό είναι το πακέτο που είναι αποθηκευμένο τώρα στον λογαριασμό.
           </p>
         </div>
 
@@ -192,12 +269,12 @@ export default async function DashboardBillingPage() {
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
             <CreditCard className="h-5 w-5" />
           </div>
-          <p className="text-sm text-[#7b6657]">Ημέρες που απομένουν</p>
+          <p className="text-sm text-[#7b6657]">Υπόλοιπο trial</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
             {trial.isActiveSubscription
-              ? '∞'
+              ? 'Ενεργή συνδρομή'
               : typeof trial.daysLeft === 'number'
-                ? trial.daysLeft
+                ? `${trial.daysLeft} ημέρες`
                 : '—'}
           </p>
         </div>
@@ -223,9 +300,15 @@ export default async function DashboardBillingPage() {
           </h3>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
             {recommendedPlan.description} Με βάση τα σημερινά σας τραπέζια
-            ({tableCount}), αυτό είναι το πακέτο που ταιριάζει στην επιχείρησή
+            ({tableCount}), αυτό είναι το προτεινόμενο πακέτο για την επιχείρησή
             σας.
           </p>
+
+          {recommendedDiffersFromCurrent ? (
+            <div className="mt-4 inline-flex rounded-2xl bg-white/10 px-4 py-2 text-sm text-white">
+              Τρέχον πακέτο: {currentPlanLabel} · Προτεινόμενο: {recommendedPlan.name}
+            </div>
+          ) : null}
         </div>
 
         <div className="p-5 sm:p-6 lg:p-8">
@@ -235,13 +318,17 @@ export default async function DashboardBillingPage() {
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             {plans.map((plan) => {
-              const active = plan.name === recommendedPlan.name
+              const isRecommended = plan.name === recommendedPlan.name
+              const isCurrent =
+                business.subscription_plan &&
+                business.subscription_plan !== 'trial' &&
+                business.subscription_plan === plan.key
 
               return (
                 <div
                   key={plan.name}
                   className={
-                    active
+                    isRecommended
                       ? 'rounded-[24px] border border-[#1f2937] bg-[#fcfaf7] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.06)]'
                       : 'rounded-[24px] border border-[#e8ddd2] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]'
                   }
@@ -254,11 +341,19 @@ export default async function DashboardBillingPage() {
                       <p className="mt-1 text-sm text-[#7b6657]">{plan.range}</p>
                     </div>
 
-                    {active ? (
-                      <span className="rounded-full bg-[#1f2937] px-3 py-1 text-xs font-medium text-white">
-                        Προτεινόμενο
-                      </span>
-                    ) : null}
+                    <div className="flex flex-col items-end gap-2">
+                      {isRecommended ? (
+                        <span className="rounded-full bg-[#1f2937] px-3 py-1 text-xs font-medium text-white">
+                          Προτεινόμενο
+                        </span>
+                      ) : null}
+
+                      {isCurrent ? (
+                        <span className="rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]">
+                          Τρέχον
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="mt-5 flex items-end gap-2">
@@ -361,6 +456,13 @@ export default async function DashboardBillingPage() {
               </p>
             </div>
           ) : null}
+
+          <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white px-4 py-3">
+            <p className="text-sm text-[#7b6657]">Τρέχον αποθηκευμένο πακέτο</p>
+            <p className="mt-1 text-lg font-semibold text-gray-900">
+              {currentPlanLabel}
+            </p>
+          </div>
 
           <div className="mt-6 space-y-3">
             {hasActiveSubscription ? (
