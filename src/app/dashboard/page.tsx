@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import {
   ClipboardList,
   CreditCard,
@@ -7,7 +8,10 @@ import {
   Wallet,
   BellRing,
 } from 'lucide-react'
-import { getCurrentBusiness } from '@/lib/actions/business.actions'
+import {
+  getCurrentBusiness,
+  isCurrentUserSuperAdmin,
+} from '@/lib/actions/business.actions'
 import {
   getCategoriesForDashboard,
   getProductsForDashboard,
@@ -35,12 +39,17 @@ export default async function DashboardHomePage() {
 
   if (!business) return null
 
+  const cookieStore = await cookies()
+  const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
+  const isSuperAdmin = await isCurrentUserSuperAdmin()
+  const isAdminViewing = Boolean(isSuperAdmin && adminSelectedBusinessId)
+
   const trial = getTrialStatus(
     business.trial_ends_at,
     business.subscription_status,
   )
 
-  if (trial.expired) {
+  if (!isAdminViewing && trial.expired) {
     return (
       <div className="space-y-6 sm:space-y-8">
         <div className="overflow-hidden rounded-[24px] border border-[#f1d4d4] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
@@ -150,7 +159,7 @@ export default async function DashboardHomePage() {
           href: '/dashboard/menu',
           cta: 'Πήγαινε στο menu',
         }
-      : !hasSubscription
+      : !hasSubscription && !isAdminViewing
         ? {
             title: 'Ολοκλήρωσε το billing',
             description:
@@ -168,7 +177,13 @@ export default async function DashboardHomePage() {
 
   return (
     <div className="space-y-5">
-      {!trial.isActiveSubscription && typeof trial.daysLeft === 'number' ? (
+      {isAdminViewing ? (
+        <div className="rounded-[22px] border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-800 shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
+          Βρίσκεστε σε προβολή admin για την επιχείρηση{' '}
+          <span className="font-semibold">{business.name}</span>. Τα billing/trial
+          στοιχεία έχουν κρυφτεί σε αυτή την προβολή.
+        </div>
+      ) : !trial.isActiveSubscription && typeof trial.daysLeft === 'number' ? (
         <div className="rounded-[22px] border border-[#e8ddd2] bg-[#fcfaf7] px-5 py-4 text-sm text-[#6f6156] shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
           Απομένουν{' '}
           <span className="font-semibold text-gray-900">{trial.daysLeft}</span>{' '}
@@ -178,7 +193,13 @@ export default async function DashboardHomePage() {
 
       <div className="overflow-hidden rounded-[24px] border border-[#ebe5dd] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
         <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-5 text-white sm:px-6 sm:py-6 lg:px-7">
-          <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
+          <div
+            className={
+              isAdminViewing
+                ? 'grid gap-5 lg:grid-cols-1 lg:items-start'
+                : 'grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-start'
+            }
+          >
             <div>
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/70">
                 Overview
@@ -194,42 +215,44 @@ export default async function DashboardHomePage() {
               </p>
             </div>
 
-            <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur-sm">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
-                Setup progress
-              </p>
+            {!isAdminViewing ? (
+              <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur-sm">
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
+                  Setup progress
+                </p>
 
-              <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/15">
-                <div
-                  className="h-full rounded-full bg-white"
-                  style={{ width: `${progressPercentage}%` }}
-                />
+                <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/15">
+                  <div
+                    className="h-full rounded-full bg-white"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+
+                <p className="mt-3 text-sm text-white/85">
+                  Ολοκληρώθηκαν {completedSteps} από 3 βασικά βήματα.
+                </p>
+
+                <div className="mt-3 space-y-2.5">
+                  <div className="rounded-2xl bg-white/10 px-4 py-2.5">
+                    <p className="text-sm font-medium text-white">
+                      Τραπέζια: {hasTables ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/10 px-4 py-2.5">
+                    <p className="text-sm font-medium text-white">
+                      Menu: {hasMenu ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/10 px-4 py-2.5">
+                    <p className="text-sm font-medium text-white">
+                      Συνδρομή: {hasSubscription ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                    </p>
+                  </div>
+                </div>
               </div>
-
-              <p className="mt-3 text-sm text-white/85">
-                Ολοκληρώθηκαν {completedSteps} από 3 βασικά βήματα.
-              </p>
-
-              <div className="mt-3 space-y-2.5">
-                <div className="rounded-2xl bg-white/10 px-4 py-2.5">
-                  <p className="text-sm font-medium text-white">
-                    Τραπέζια: {hasTables ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-white/10 px-4 py-2.5">
-                  <p className="text-sm font-medium text-white">
-                    Menu: {hasMenu ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-white/10 px-4 py-2.5">
-                  <p className="text-sm font-medium text-white">
-                    Συνδρομή: {hasSubscription ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
-                  </p>
-                </div>
-              </div>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -350,22 +373,24 @@ export default async function DashboardHomePage() {
               </div>
             </Link>
 
-            <Link
-              href="/dashboard/billing"
-              className="group rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4 transition hover:bg-white"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Billing & συνδρομή
-                  </p>
-                  <p className="mt-1 text-sm text-[#7b6657]">
-                    Δες trial, συνδρομή και τιμολόγηση.
-                  </p>
+            {!isAdminViewing ? (
+              <Link
+                href="/dashboard/billing"
+                className="group rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4 transition hover:bg-white"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Billing & συνδρομή
+                    </p>
+                    <p className="mt-1 text-sm text-[#7b6657]">
+                      Δες trial, συνδρομή και τιμολόγηση.
+                    </p>
+                  </div>
+                  <CreditCard className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
                 </div>
-                <CreditCard className="h-5 w-5 shrink-0 text-[#8b715d] transition group-hover:translate-x-1" />
-              </div>
-            </Link>
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>
