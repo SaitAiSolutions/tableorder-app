@@ -5,6 +5,7 @@ import {
   Table2,
   UtensilsCrossed,
   Wallet,
+  BellRing,
 } from 'lucide-react'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import {
@@ -92,12 +93,21 @@ export default async function DashboardHomePage() {
   const safeCategories = categories ?? []
   const safeProducts = products ?? []
 
+  const serviceOrders = safeOrders.filter(
+    (o) =>
+      !!getServiceRequestType(o.notes) &&
+      o.status !== 'completed' &&
+      o.status !== 'cancelled',
+  )
+
   const regularOrders = safeOrders.filter((o) => !getServiceRequestType(o.notes))
+
   const activeOrdersList = regularOrders.filter(
     (o) => o.status !== 'completed' && o.status !== 'cancelled',
   )
 
   const activeOrders = activeOrdersList.length
+  const activeServiceRequests = serviceOrders.length
 
   const occupiedTables = safeTables.filter((table) => !!table.active_session).length
 
@@ -224,7 +234,7 @@ export default async function DashboardHomePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
             <ClipboardList className="h-5 w-5" />
@@ -232,6 +242,16 @@ export default async function DashboardHomePage() {
           <p className="text-sm text-[#7b6657]">Ενεργές παραγγελίες</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
             {activeOrders}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+            <BellRing className="h-5 w-5" />
+          </div>
+          <p className="text-sm text-[#7b6657]">Service requests</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+            {activeServiceRequests}
           </p>
         </div>
 
