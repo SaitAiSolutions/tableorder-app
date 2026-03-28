@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isSuperAdminEmail } from '@/lib/utils/admin'
 import { isTrialExpired } from '@/lib/utils/trial'
 import type {
   OrderStatus,
@@ -25,12 +27,20 @@ function getServiceRequestNote(type: ServiceRequestType) {
 
 async function resolveCurrentBusinessId() {
   const supabase = await createClient()
+  const cookieStore = await cookies()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) return { businessId: null, error: 'Not authenticated' }
+
+  const isSuperAdmin = isSuperAdminEmail(user.email)
+  const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
+
+  if (isSuperAdmin && adminSelectedBusinessId) {
+    return { businessId: adminSelectedBusinessId, error: null }
+  }
 
   const { data, error } = await supabase
     .from('business_users')
