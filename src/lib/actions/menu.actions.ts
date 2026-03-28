@@ -28,21 +28,34 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
-async function resolveCurrentBusinessId() {
+async function resolveCurrentBusinessContext() {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const cookieStore = await cookies()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) return { businessId: null, error: 'Not authenticated' }
+  if (!user) {
+    return {
+      businessId: null,
+      error: 'Not authenticated',
+      isAdminSelection: false,
+      db: supabase,
+    }
+  }
 
   const isSuperAdmin = isSuperAdminEmail(user.email)
   const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
 
   if (isSuperAdmin && adminSelectedBusinessId) {
-    return { businessId: adminSelectedBusinessId, error: null }
+    return {
+      businessId: adminSelectedBusinessId,
+      error: null,
+      isAdminSelection: true,
+      db: admin,
+    }
   }
 
   const { data, error } = await supabase
@@ -54,10 +67,20 @@ async function resolveCurrentBusinessId() {
   const row = data as unknown as { business_id?: string } | null
 
   if (error || !row?.business_id) {
-    return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
+    return {
+      businessId: null,
+      error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.',
+      isAdminSelection: false,
+      db: supabase,
+    }
   }
 
-  return { businessId: row.business_id, error: null }
+  return {
+    businessId: row.business_id,
+    error: null,
+    isAdminSelection: false,
+    db: supabase,
+  }
 }
 
 export async function getMenuForCustomer(
@@ -136,22 +159,19 @@ export async function getMenuForCustomer(
 export async function getCategoriesForDashboard(
   businessId?: string,
 ): Promise<ActionResult<Category[]>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } =
-      await resolveCurrentBusinessId()
-
-    if (error || !currentBusinessId) {
-      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    if (context.error || !context.businessId) {
+      return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
 
-    resolvedBusinessId = currentBusinessId
+    resolvedBusinessId = context.businessId
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('categories')
     .select('*')
     .eq('business_id', resolvedBusinessId)
@@ -165,22 +185,19 @@ export async function getProductsForDashboard(
   businessId?: string,
   categoryId?: string,
 ): Promise<ActionResult<ProductWithOptions[]>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } =
-      await resolveCurrentBusinessId()
-
-    if (error || !currentBusinessId) {
-      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    if (context.error || !context.businessId) {
+      return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
 
-    resolvedBusinessId = currentBusinessId
+    resolvedBusinessId = context.businessId
   }
 
-  let query = supabase
+  let query = context.db
     .from('products')
     .select(`
       *,
@@ -218,11 +235,16 @@ export async function getProductsForDashboard(
 export async function createCategory(
   input: InsertCategory,
 ): Promise<ActionResult<Category>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const payload = {
+    ...input,
+    business_id: input.business_id ?? context.businessId,
+  }
+
+  const { data, error } = await context.db
     .from('categories')
-    .insert(input as never)
+    .insert(payload as never)
     .select()
     .single()
 
@@ -236,9 +258,9 @@ export async function updateCategory(
   categoryId: string,
   updates: UpdateCategory,
 ): Promise<ActionResult<Category>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('categories')
     .update(updates as never)
     .eq('id', categoryId)
@@ -253,29 +275,27 @@ export async function updateCategory(
 }
 
 export async function moveCategoryUp(categoryId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data: current, error: currentError } = await supabase
+  const { data: current, error: currentError } = await context.db
     .from('categories')
     .select('id, sort_order')
     .eq('id', categoryId)
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .single()
 
   if (currentError || !current) {
     return { data: null, error: 'Η κατηγορία δεν βρέθηκε.' }
   }
 
-  const { data: previous, error: previousError } = await supabase
+  const { data: previous, error: previousError } = await context.db
     .from('categories')
     .select('id, sort_order')
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .lt('sort_order', current.sort_order)
     .order('sort_order', { ascending: false })
     .limit(1)
@@ -289,7 +309,7 @@ export async function moveCategoryUp(categoryId: string): Promise<ActionResult> 
     return { data: null, error: null }
   }
 
-  const { error: firstUpdateError } = await supabase
+  const { error: firstUpdateError } = await context.db
     .from('categories')
     .update({ sort_order: previous.sort_order } as never)
     .eq('id', current.id)
@@ -298,7 +318,7 @@ export async function moveCategoryUp(categoryId: string): Promise<ActionResult> 
     return { data: null, error: firstUpdateError.message }
   }
 
-  const { error: secondUpdateError } = await supabase
+  const { error: secondUpdateError } = await context.db
     .from('categories')
     .update({ sort_order: current.sort_order } as never)
     .eq('id', previous.id)
@@ -313,29 +333,27 @@ export async function moveCategoryUp(categoryId: string): Promise<ActionResult> 
 }
 
 export async function moveCategoryDown(categoryId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data: current, error: currentError } = await supabase
+  const { data: current, error: currentError } = await context.db
     .from('categories')
     .select('id, sort_order')
     .eq('id', categoryId)
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .single()
 
   if (currentError || !current) {
     return { data: null, error: 'Η κατηγορία δεν βρέθηκε.' }
   }
 
-  const { data: next, error: nextError } = await supabase
+  const { data: next, error: nextError } = await context.db
     .from('categories')
     .select('id, sort_order')
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .gt('sort_order', current.sort_order)
     .order('sort_order', { ascending: true })
     .limit(1)
@@ -349,7 +367,7 @@ export async function moveCategoryDown(categoryId: string): Promise<ActionResult
     return { data: null, error: null }
   }
 
-  const { error: firstUpdateError } = await supabase
+  const { error: firstUpdateError } = await context.db
     .from('categories')
     .update({ sort_order: next.sort_order } as never)
     .eq('id', current.id)
@@ -358,7 +376,7 @@ export async function moveCategoryDown(categoryId: string): Promise<ActionResult
     return { data: null, error: firstUpdateError.message }
   }
 
-  const { error: secondUpdateError } = await supabase
+  const { error: secondUpdateError } = await context.db
     .from('categories')
     .update({ sort_order: current.sort_order } as never)
     .eq('id', next.id)
@@ -373,9 +391,9 @@ export async function moveCategoryDown(categoryId: string): Promise<ActionResult
 }
 
 export async function deleteCategory(categoryId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { error } = await supabase
+  const { error } = await context.db
     .from('categories')
     .delete()
     .eq('id', categoryId)
@@ -400,11 +418,16 @@ export async function deleteCategory(categoryId: string): Promise<ActionResult> 
 export async function createProduct(
   input: InsertProduct,
 ): Promise<ActionResult<Product>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const payload = {
+    ...input,
+    business_id: input.business_id ?? context.businessId,
+  }
+
+  const { data, error } = await context.db
     .from('products')
-    .insert(input as never)
+    .insert(payload as never)
     .select()
     .single()
 
@@ -419,9 +442,9 @@ export async function updateProduct(
   productId: string,
   updates: UpdateProduct,
 ): Promise<ActionResult<Product>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('products')
     .update(updates as never)
     .eq('id', productId)
@@ -436,29 +459,27 @@ export async function updateProduct(
 }
 
 export async function moveProductUp(productId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data: current, error: currentError } = await supabase
+  const { data: current, error: currentError } = await context.db
     .from('products')
     .select('id, category_id, sort_order')
     .eq('id', productId)
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .single()
 
   if (currentError || !current) {
     return { data: null, error: 'Το προϊόν δεν βρέθηκε.' }
   }
 
-  const { data: previous, error: previousError } = await supabase
+  const { data: previous, error: previousError } = await context.db
     .from('products')
     .select('id, sort_order')
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .eq('category_id', current.category_id)
     .lt('sort_order', current.sort_order)
     .order('sort_order', { ascending: false })
@@ -473,7 +494,7 @@ export async function moveProductUp(productId: string): Promise<ActionResult> {
     return { data: null, error: null }
   }
 
-  const { error: firstUpdateError } = await supabase
+  const { error: firstUpdateError } = await context.db
     .from('products')
     .update({ sort_order: previous.sort_order } as never)
     .eq('id', current.id)
@@ -482,7 +503,7 @@ export async function moveProductUp(productId: string): Promise<ActionResult> {
     return { data: null, error: firstUpdateError.message }
   }
 
-  const { error: secondUpdateError } = await supabase
+  const { error: secondUpdateError } = await context.db
     .from('products')
     .update({ sort_order: current.sort_order } as never)
     .eq('id', previous.id)
@@ -497,29 +518,27 @@ export async function moveProductUp(productId: string): Promise<ActionResult> {
 }
 
 export async function moveProductDown(productId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data: current, error: currentError } = await supabase
+  const { data: current, error: currentError } = await context.db
     .from('products')
     .select('id, category_id, sort_order')
     .eq('id', productId)
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .single()
 
   if (currentError || !current) {
     return { data: null, error: 'Το προϊόν δεν βρέθηκε.' }
   }
 
-  const { data: next, error: nextError } = await supabase
+  const { data: next, error: nextError } = await context.db
     .from('products')
     .select('id, sort_order')
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
     .eq('category_id', current.category_id)
     .gt('sort_order', current.sort_order)
     .order('sort_order', { ascending: true })
@@ -534,7 +553,7 @@ export async function moveProductDown(productId: string): Promise<ActionResult> 
     return { data: null, error: null }
   }
 
-  const { error: firstUpdateError } = await supabase
+  const { error: firstUpdateError } = await context.db
     .from('products')
     .update({ sort_order: next.sort_order } as never)
     .eq('id', current.id)
@@ -543,7 +562,7 @@ export async function moveProductDown(productId: string): Promise<ActionResult> 
     return { data: null, error: firstUpdateError.message }
   }
 
-  const { error: secondUpdateError } = await supabase
+  const { error: secondUpdateError } = await context.db
     .from('products')
     .update({ sort_order: current.sort_order } as never)
     .eq('id', next.id)
@@ -561,9 +580,9 @@ export async function toggleProductAvailability(
   productId: string,
   isAvailable: boolean,
 ): Promise<ActionResult<Product>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('products')
     .update({ is_available: isAvailable } as never)
     .eq('id', productId)
@@ -578,9 +597,9 @@ export async function toggleProductAvailability(
 }
 
 export async function deleteProduct(productId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { error } = await supabase
+  const { error } = await context.db
     .from('products')
     .delete()
     .eq('id', productId)
@@ -658,11 +677,16 @@ export async function uploadProductImage(
 export async function createOptionGroup(
   input: InsertProductOptionGroup,
 ): Promise<ActionResult<ProductOptionGroup>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const payload = {
+    ...input,
+    business_id: input.business_id ?? context.businessId,
+  }
+
+  const { data, error } = await context.db
     .from('product_option_groups')
-    .insert(input as never)
+    .insert(payload as never)
     .select()
     .single()
 
@@ -674,9 +698,9 @@ export async function createOptionGroup(
 }
 
 export async function deleteOptionGroup(groupId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { error } = await supabase
+  const { error } = await context.db
     .from('product_option_groups')
     .delete()
     .eq('id', groupId)
@@ -691,11 +715,16 @@ export async function deleteOptionGroup(groupId: string): Promise<ActionResult> 
 export async function createOptionChoice(
   input: InsertProductOptionChoice,
 ): Promise<ActionResult<ProductOptionChoice>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const payload = {
+    ...input,
+    business_id: input.business_id ?? context.businessId,
+  }
+
+  const { data, error } = await context.db
     .from('product_option_choices')
-    .insert(input as never)
+    .insert(payload as never)
     .select()
     .single()
 
@@ -707,9 +736,9 @@ export async function createOptionChoice(
 }
 
 export async function deleteOptionChoice(choiceId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { error } = await supabase
+  const { error } = await context.db
     .from('product_option_choices')
     .delete()
     .eq('id', choiceId)

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/utils/admin'
 import type {
   Table,
@@ -18,8 +19,9 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
-async function resolveCurrentBusinessId() {
+async function resolveCurrentBusinessContext() {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const cookieStore = await cookies()
 
   const {
@@ -27,14 +29,24 @@ async function resolveCurrentBusinessId() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { businessId: null, error: 'Not authenticated' }
+    return {
+      businessId: null,
+      error: 'Not authenticated',
+      isAdminSelection: false,
+      db: supabase,
+    }
   }
 
   const isSuperAdmin = isSuperAdminEmail(user.email)
   const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
 
   if (isSuperAdmin && adminSelectedBusinessId) {
-    return { businessId: adminSelectedBusinessId, error: null }
+    return {
+      businessId: adminSelectedBusinessId,
+      error: null,
+      isAdminSelection: true,
+      db: admin,
+    }
   }
 
   const { data: businessRow, error: businessError } = await supabase
@@ -46,16 +58,26 @@ async function resolveCurrentBusinessId() {
   const row = businessRow as { business_id?: string } | null
 
   if (businessError || !row?.business_id) {
-    return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
+    return {
+      businessId: null,
+      error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.',
+      isAdminSelection: false,
+      db: supabase,
+    }
   }
 
-  return { businessId: row.business_id, error: null }
+  return {
+    businessId: row.business_id,
+    error: null,
+    isAdminSelection: false,
+    db: supabase,
+  }
 }
 
 async function refreshBusinessPlan(businessId: string) {
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
-  await supabase.rpc('refresh_business_plan_from_tables' as never, {
+  await admin.rpc('refresh_business_plan_from_tables' as never, {
     p_business_id: businessId,
   } as never)
 
@@ -67,22 +89,19 @@ async function refreshBusinessPlan(businessId: string) {
 export async function getTablesWithSessions(
   businessId?: string,
 ): Promise<ActionResult<TableWithActiveSession[]>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } =
-      await resolveCurrentBusinessId()
-
-    if (error || !currentBusinessId) {
-      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    if (context.error || !context.businessId) {
+      return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
 
-    resolvedBusinessId = currentBusinessId
+    resolvedBusinessId = context.businessId
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('tables')
     .select(`
       *,
@@ -172,9 +191,9 @@ export async function getTablesWithSessions(
 export async function getSessionDetail(
   sessionId: string,
 ): Promise<ActionResult<SessionWithOrders>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('table_sessions')
     .select(`
       *,
@@ -205,12 +224,10 @@ export async function getSessionDetail(
 export async function createTable(
   formData: FormData,
 ): Promise<ActionResult<Table>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
   const table_number = (formData.get('table_number') as string)?.trim()
@@ -221,12 +238,12 @@ export async function createTable(
   }
 
   const payload: InsertTable = {
-    business_id: businessId,
+    business_id: context.businessId,
     table_number,
     name: name || null,
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('tables')
     .insert(payload as never)
     .select()
@@ -242,7 +259,7 @@ export async function createTable(
     return { data: null, error: error.message }
   }
 
-  await refreshBusinessPlan(businessId)
+  await refreshBusinessPlan(context.businessId)
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
@@ -255,12 +272,10 @@ export async function createTable(
 export async function createTablesBatch(
   count: number,
 ): Promise<ActionResult<{ created: number }>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
   const normalizedCount = Number(count)
@@ -273,10 +288,10 @@ export async function createTablesBatch(
     return { data: null, error: 'Μπορείτε να δημιουργήσετε έως 200 τραπέζια τη φορά.' }
   }
 
-  const { data: existingTables, error: existingError } = await supabase
+  const { data: existingTables, error: existingError } = await context.db
     .from('tables')
     .select('table_number')
-    .eq('business_id', businessId)
+    .eq('business_id', context.businessId)
 
   if (existingError) {
     return { data: null, error: existingError.message }
@@ -296,7 +311,7 @@ export async function createTablesBatch(
     }
 
     payload.push({
-      business_id: businessId,
+      business_id: context.businessId,
       table_number: value,
       name: null,
       is_active: true,
@@ -311,7 +326,7 @@ export async function createTablesBatch(
     }
   }
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await context.db
     .from('tables')
     .insert(payload as never)
 
@@ -319,7 +334,7 @@ export async function createTablesBatch(
     return { data: null, error: insertError.message }
   }
 
-  await refreshBusinessPlan(businessId)
+  await refreshBusinessPlan(context.businessId)
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
@@ -337,9 +352,9 @@ export async function updateTable(
   tableId: string,
   updates: UpdateTable,
 ): Promise<ActionResult<Table>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('tables')
     .update(updates as never)
     .eq('id', tableId)
@@ -364,15 +379,13 @@ export async function updateTable(
 }
 
 export async function deleteTable(tableId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data: tableRow, error: tableError } = await supabase
+  const { data: tableRow, error: tableError } = await context.db
     .from('tables')
     .select('id')
     .eq('id', tableId)
@@ -382,7 +395,7 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
     return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
   }
 
-  const { data: activeSession, error: sessionError } = await supabase
+  const { data: activeSession, error: sessionError } = await context.db
     .from('table_sessions')
     .select('id')
     .eq('table_id', tableId)
@@ -400,13 +413,13 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
     }
   }
 
-  const { error } = await supabase.from('tables').delete().eq('id', tableId)
+  const { error } = await context.db.from('tables').delete().eq('id', tableId)
 
   if (error) {
     return { data: null, error: error.message }
   }
 
-  await refreshBusinessPlan(businessId)
+  await refreshBusinessPlan(context.businessId)
 
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard/settings')
@@ -418,16 +431,14 @@ export async function deleteTable(tableId: string): Promise<ActionResult> {
 }
 
 export async function clearTable(tableId: string): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { businessId, error: businessError } = await resolveCurrentBusinessId()
-
-  if (businessError || !businessId) {
-    return { data: null, error: businessError ?? 'Δεν βρέθηκε επιχείρηση.' }
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
   }
 
-  const { data, error } = await supabase.rpc('clear_table' as never, {
-    p_business_id: businessId,
+  const { data, error } = await context.db.rpc('clear_table' as never, {
+    p_business_id: context.businessId,
     p_table_id: tableId,
   } as never)
 
@@ -455,9 +466,9 @@ export async function transferOrder(
   orderId: string,
   targetTableId: string,
 ): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { data, error } = await supabase.rpc('transfer_order' as never, {
+  const { data, error } = await context.db.rpc('transfer_order' as never, {
     p_business_id: businessId,
     p_order_id: orderId,
     p_target_table_id: targetTableId,

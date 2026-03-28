@@ -25,21 +25,34 @@ function getServiceRequestNote(type: ServiceRequestType) {
   return `${SERVICE_REQUEST_PREFIX}${type}`
 }
 
-async function resolveCurrentBusinessId() {
+async function resolveCurrentBusinessContext() {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const cookieStore = await cookies()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) return { businessId: null, error: 'Not authenticated' }
+  if (!user) {
+    return {
+      businessId: null,
+      error: 'Not authenticated',
+      isAdminSelection: false,
+      db: supabase,
+    }
+  }
 
   const isSuperAdmin = isSuperAdminEmail(user.email)
   const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
 
   if (isSuperAdmin && adminSelectedBusinessId) {
-    return { businessId: adminSelectedBusinessId, error: null }
+    return {
+      businessId: adminSelectedBusinessId,
+      error: null,
+      isAdminSelection: true,
+      db: admin,
+    }
   }
 
   const { data, error } = await supabase
@@ -51,10 +64,20 @@ async function resolveCurrentBusinessId() {
   const row = data as unknown as { business_id?: string } | null
 
   if (error || !row?.business_id) {
-    return { businessId: null, error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.' }
+    return {
+      businessId: null,
+      error: 'Δεν βρέθηκε επιχείρηση για τον χρήστη.',
+      isAdminSelection: false,
+      db: supabase,
+    }
   }
 
-  return { businessId: row.business_id, error: null }
+  return {
+    businessId: row.business_id,
+    error: null,
+    isAdminSelection: false,
+    db: supabase,
+  }
 }
 
 async function ensureBusinessCanReceiveOrders(
@@ -112,7 +135,6 @@ async function ensureBusinessCanReceiveOrders(
 
   return {
     ok: true as const,
-    admin,
   }
 }
 
@@ -327,9 +349,9 @@ export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus,
 ): Promise<ActionResult> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
-  const { error } = await supabase
+  const { error } = await context.db
     .from('orders')
     .update({ status } as never)
     .eq('id', orderId)
@@ -351,22 +373,19 @@ export async function getOrdersByBusiness(
   businessId?: string,
   limit = 50,
 ): Promise<ActionResult<OrderWithItems[]>> {
-  const supabase = await createClient()
+  const context = await resolveCurrentBusinessContext()
 
   let resolvedBusinessId = businessId
 
   if (!resolvedBusinessId) {
-    const { businessId: currentBusinessId, error } =
-      await resolveCurrentBusinessId()
-
-    if (error || !currentBusinessId) {
-      return { data: null, error: error ?? 'Δεν βρέθηκε επιχείρηση.' }
+    if (context.error || !context.businessId) {
+      return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
     }
 
-    resolvedBusinessId = currentBusinessId
+    resolvedBusinessId = context.businessId
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await context.db
     .from('orders')
     .select(`
       *,
