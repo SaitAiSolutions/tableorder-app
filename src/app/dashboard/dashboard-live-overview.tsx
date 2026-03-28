@@ -44,6 +44,16 @@ function getServiceRequestLabel(type: ServiceRequestType) {
   return type === 'waiter' ? 'Κλήση σερβιτόρου' : 'Αίτημα λογαριασμού'
 }
 
+function getOrderStatusLabel(status: string) {
+  if (status === 'new') return 'Νέα'
+  if (status === 'accepted') return 'Αποδεκτή'
+  if (status === 'preparing') return 'Σε προετοιμασία'
+  if (status === 'ready') return 'Έτοιμη'
+  if (status === 'completed') return 'Ολοκληρωμένη'
+  if (status === 'cancelled') return 'Ακυρωμένη'
+  return status
+}
+
 export function DashboardLiveOverview({
   initialOrders,
   currency,
@@ -57,14 +67,22 @@ export function DashboardLiveOverview({
     )
   }, [orders])
 
-  const latestActiveOrder = useMemo(() => {
-    return activeOrders[0] as OrderWithOptionalTable | undefined
+  const prioritizedActiveItem = useMemo(() => {
+    const activeServiceRequest = activeOrders.find((order) =>
+      !!getServiceRequestType(order.notes),
+    ) as OrderWithOptionalTable | undefined
+
+    if (activeServiceRequest) return activeServiceRequest
+
+    return activeOrders.find((order) => !getServiceRequestType(order.notes)) as
+      | OrderWithOptionalTable
+      | undefined
   }, [activeOrders])
 
-  if (latestActiveOrder) {
-    const serviceType = getServiceRequestType(latestActiveOrder.notes)
-    const tableNumber = latestActiveOrder.table?.table_number
-    const tableName = latestActiveOrder.table?.name?.trim()
+  if (prioritizedActiveItem) {
+    const serviceType = getServiceRequestType(prioritizedActiveItem.notes)
+    const tableNumber = prioritizedActiveItem.table?.table_number
+    const tableName = prioritizedActiveItem.table?.name?.trim()
     const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
     const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
 
@@ -114,7 +132,7 @@ export function DashboardLiveOverview({
                 Status
               </p>
               <p className="mt-2 text-lg font-semibold text-gray-900">
-                {latestActiveOrder.status}
+                {getOrderStatusLabel(prioritizedActiveItem.status)}
               </p>
             </div>
 
@@ -123,7 +141,7 @@ export function DashboardLiveOverview({
                 Είδη
               </p>
               <p className="mt-2 text-lg font-semibold text-gray-900">
-                {latestActiveOrder.order_items?.length ?? 0}
+                {prioritizedActiveItem.order_items?.length ?? 0}
               </p>
             </div>
 
@@ -132,7 +150,7 @@ export function DashboardLiveOverview({
                 Σύνολο
               </p>
               <p className="mt-2 text-lg font-semibold text-gray-900">
-                {formatCurrency(latestActiveOrder.total_amount, currency)}
+                {formatCurrency(prioritizedActiveItem.total_amount, currency)}
               </p>
             </div>
           </div>
