@@ -1,7 +1,11 @@
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
-import { getCurrentBusiness, isCurrentUserSuperAdmin } from '@/lib/actions/business.actions'
+import {
+  getCurrentBusiness,
+  isCurrentUserSuperAdmin,
+} from '@/lib/actions/business.actions'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function DashboardLayout({
@@ -16,23 +20,26 @@ export default async function DashboardLayout({
 
   if (!user) redirect('/auth/login')
 
-  const isSuperAdmin = await isCurrentUserSuperAdmin()
   const { data: business } = await getCurrentBusiness()
+  if (!business) redirect('/onboarding')
 
-  if (!business) {
-    if (isSuperAdmin) {
-      redirect('/admin')
-    }
-
-    redirect('/onboarding')
-  }
+  const cookieStore = await cookies()
+  const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
+  const isSuperAdmin = await isCurrentUserSuperAdmin()
+  const isAdminViewing = Boolean(isSuperAdmin && adminSelectedBusinessId)
 
   return (
     <div className="flex min-h-screen bg-[#f6f3ee]">
-      <Sidebar />
+      <Sidebar
+        isAdminViewing={isAdminViewing}
+        adminBusinessName={isAdminViewing ? business.name : null}
+      />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <Topbar />
+        <Topbar
+          isAdminViewing={isAdminViewing}
+          adminBusinessName={isAdminViewing ? business.name : null}
+        />
         <main className="flex-1 px-3 py-4 sm:px-4 sm:py-5 lg:px-8 lg:py-8">
           {children}
         </main>

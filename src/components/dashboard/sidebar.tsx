@@ -9,9 +9,15 @@ import {
   Settings,
   Table2,
   CreditCard,
-  ShieldCheck,
+  Shield,
+  ArrowLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+
+interface SidebarProps {
+  isAdminViewing?: boolean
+  adminBusinessName?: string | null
+}
 
 const items = [
   { href: '/dashboard', label: 'Πίνακας Ελέγχου', icon: LayoutGrid },
@@ -20,10 +26,13 @@ const items = [
   { href: '/dashboard/tables', label: 'Τραπέζια', icon: Table2 },
   { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { href: '/dashboard/settings', label: 'Ρυθμίσεις', icon: Settings },
-  { href: '/admin', label: 'Admin', icon: ShieldCheck },
+  { href: '/admin', label: 'Admin', icon: Shield },
 ]
 
-export function Sidebar() {
+export function Sidebar({
+  isAdminViewing = false,
+  adminBusinessName = null,
+}: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -41,6 +50,25 @@ export function Sidebar() {
               Διαχειριστείτε παραγγελίες, τραπέζια και το ψηφιακό σας μενού.
             </p>
           </div>
+
+          {isAdminViewing ? (
+            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-blue-700">
+                Admin viewing mode
+              </p>
+              <p className="mt-2 text-sm font-semibold text-gray-900">
+                {adminBusinessName ?? 'Επιλεγμένη επιχείρηση'}
+              </p>
+
+              <Link
+                href="/admin"
+                className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-[#1f2937] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#111827]"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Επιστροφή στο Admin
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         <nav className="flex flex-1 flex-col gap-2 p-4">
@@ -76,6 +104,25 @@ export function Sidebar() {
             Owner Dashboard
           </h2>
         </div>
+
+        {isAdminViewing ? (
+          <div className="mb-3 rounded-2xl border border-blue-200 bg-blue-50 p-3">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-blue-700">
+              Admin viewing mode
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {adminBusinessName ?? 'Επιλεγμένη επιχείρηση'}
+            </p>
+
+            <Link
+              href="/admin"
+              className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-[#1f2937] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#111827]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Επιστροφή στο Admin
+            </Link>
+          </div>
+        ) : null}
 
         <nav className="scrollbar-none flex gap-2 overflow-x-auto pb-1">
           {items.map((item) => {
