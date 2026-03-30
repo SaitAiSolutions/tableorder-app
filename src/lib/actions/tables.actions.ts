@@ -19,6 +19,39 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
+function sortTablesNumerically<T extends { table_number?: string | null; name?: string | null }>(
+  tables: T[],
+) {
+  return [...tables].sort((a, b) => {
+    const aRaw = String(a.table_number ?? '').trim()
+    const bRaw = String(b.table_number ?? '').trim()
+
+    const aNum = Number(aRaw)
+    const bNum = Number(bRaw)
+
+    const aIsNum = Number.isFinite(aNum)
+    const bIsNum = Number.isFinite(bNum)
+
+    if (aIsNum && bIsNum && aNum !== bNum) {
+      return aNum - bNum
+    }
+
+    if (aIsNum && !bIsNum) return -1
+    if (!aIsNum && bIsNum) return 1
+
+    const textCompare = aRaw.localeCompare(bRaw, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+
+    if (textCompare !== 0) return textCompare
+
+    return String(a.name ?? '').localeCompare(String(b.name ?? ''), undefined, {
+      sensitivity: 'base',
+    })
+  })
+}
+
 async function getBusinessContext() {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -140,13 +173,13 @@ export async function getTablesWithSessions(
     `)
     .eq('business_id', resolvedBusinessId)
     .eq('is_active', true)
-    .eq('table_sessions.is_active', true)
-    .order('table_number')
 
   if (error) return { data: null, error: error.message }
 
   const enriched: TableWithActiveSession[] = (data ?? []).map((table: any) => {
-    const sessions = (table.table_sessions ?? []) as any[]
+    const sessions = ((table.table_sessions ?? []) as any[]).filter(
+      (session) => session?.is_active === true,
+    )
     const session = sessions[0] ?? null
 
     if (!session) return { ...table, active_session: null }
@@ -167,7 +200,7 @@ export async function getTablesWithSessions(
     return { ...table, active_session }
   })
 
-  return { data: enriched, error: null }
+  return { data: sortTablesNumerically(enriched), error: null }
 }
 
 export async function getSessionDetail(
@@ -240,7 +273,7 @@ export async function createTable(
     if (error.code === '23505') {
       return {
         data: null,
-        error: `Το τραπέζι "${table_number}" υπάρχει ήδη.`,
+        error: 'Υπάρχει ήδη τραπέζι με αυτόν τον αριθμό και αυτή την περιγραφή.',
       }
     }
     return { data: null, error: error.message }
@@ -280,23 +313,26 @@ export async function createTablesBatch(
 
   const { data: existingTables, error: existingError } = await client
     .from('tables')
-    .select('table_number')
+    .select('table_number, name')
     .eq('business_id', businessId)
 
   if (existingError) {
     return { data: null, error: existingError.message }
   }
 
-  const existingNumbers = new Set(
-    (existingTables ?? []).map((table) => String(table.table_number).trim()),
+  const existingKeys = new Set(
+    (existingTables ?? []).map(
+      (table) => `${String(table.table_number).trim()}::${String(table.name ?? '').trim()}`,
+    ),
   )
 
   const payload: InsertTable[] = []
 
   for (let i = 1; i <= normalizedCount; i += 1) {
     const value = String(i)
+    const key = `${value}::`
 
-    if (existingNumbers.has(value)) {
+    if (existingKeys.has(key)) {
       continue
     }
 
@@ -357,7 +393,7 @@ export async function updateTable(
     if (error.code === '23505') {
       return {
         data: null,
-        error: 'Υπάρχει ήδη τραπέζι με αυτόν τον αριθμό.',
+        error: 'Υπάρχει ήδη τραπέζι με αυτόν τον αριθμό και αυτή την περιγραφή.',
       }
     }
     return { data: null, error: error.message }
