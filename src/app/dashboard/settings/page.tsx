@@ -1,12 +1,15 @@
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
+import { getPrinterSettingsForBusiness } from '@/lib/actions/printer.actions'
 import { SettingsForm } from './settings-form'
 import { TableManager } from './table-manager'
 import { PasswordForm } from './password-form'
+import { PrinterSettingsForm } from './printer-settings-form'
 
 export default async function DashboardSettingsPage() {
   const { data: business } = await getCurrentBusiness()
   const { data: tables } = await getTablesWithSessions()
+  const { data: printerSettings } = await getPrinterSettingsForBusiness()
 
   if (!business) return null
 
@@ -20,7 +23,7 @@ export default async function DashboardSettingsPage() {
           Ρυθμίσεις
         </h2>
         <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Διαχείριση στοιχείων επιχείρησης, εμφάνισης, τραπεζιών και κωδικού πρόσβασης.
+          Διαχείριση στοιχείων επιχείρησης, εμφάνισης, τραπεζιών, κωδικού και εκτυπωτή.
         </p>
       </div>
 
@@ -28,6 +31,8 @@ export default async function DashboardSettingsPage() {
         <SettingsForm business={business} />
         <TableManager tables={tables ?? []} businessSlug={business.slug} />
       </div>
+
+      <PrinterSettingsForm printerSettings={printerSettings ?? null} />
 
       <PasswordForm />
     </div>
