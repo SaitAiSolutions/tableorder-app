@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import { createStarterMenu } from '@/lib/actions/onboarding.actions'
 import {
+  autoTranslateMenuToEnglish,
   getCategoriesForDashboard,
   getProductsForDashboard,
 } from '@/lib/actions/menu.actions'
@@ -86,6 +87,22 @@ export default async function DashboardMenuPage({
     )
   }
 
+  async function handleAutoTranslateMenu() {
+    'use server'
+
+    const result = await autoTranslateMenuToEnglish()
+
+    if (result.error) {
+      redirect(`/dashboard/menu?menu_error=${encodeURIComponent(result.error)}`)
+    }
+
+    const summary = result.data
+
+    const message = `Ολοκληρώθηκε η αυτόματη μετάφραση. Κατηγορίες: ${summary?.categories ?? 0}, Προϊόντα: ${summary?.products ?? 0}, Περιγραφές: ${summary?.descriptions ?? 0}, Ομάδες επιλογών: ${summary?.optionGroups ?? 0}, Επιλογές: ${summary?.optionChoices ?? 0}.`
+
+    redirect(`/dashboard/menu?menu_created=${encodeURIComponent(message)}`)
+  }
+
   const { data: business } = await getCurrentBusiness()
   if (!business) return null
 
@@ -137,6 +154,15 @@ export default async function DashboardMenuPage({
                 className="inline-flex w-full items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
               >
                 Starter menu για snack bar
+              </button>
+            </form>
+
+            <form action={handleAutoTranslateMenu}>
+              <button
+                type="submit"
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+              >
+                Αυτόματη μετάφραση menu στα Αγγλικά
               </button>
             </form>
           </div>

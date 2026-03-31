@@ -83,6 +83,213 @@ async function resolveCurrentBusinessContext() {
   }
 }
 
+async function translateGreekToEnglish(text: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('Missing OPENAI_API_KEY.')
+  }
+
+  const input = text.trim()
+
+  if (!input) return ''
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-5.4',
+      input: [
+        {
+          role: 'system',
+          content:
+            'You translate Greek menu text into natural English for restaurant and cafe menus. Return only the translated text, with no quotes, no explanation, and no extra formatting.',
+        },
+        {
+          role: 'user',
+          content: input,
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`OpenAI translation error: ${errorText}`)
+  }
+
+  const json = await response.json()
+  const outputText = json?.output_text?.trim?.()
+
+  if (!outputText) {
+    throw new Error('OpenAI returned empty translation output.')
+  }
+
+  return outputText
+}
+
+export async function autoTranslateMenuToEnglish(): Promise<
+  ActionResult<{
+    categories: number
+    products: number
+    descriptions: number
+    optionGroups: number
+    optionChoices: number
+  }>
+> {
+  const context = await resolveCurrentBusinessContext()
+
+  if (context.error || !context.businessId) {
+    return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  const businessId = context.businessId
+  const db = context.db
+
+  try {
+    let translatedCategories = 0
+    let translatedProducts = 0
+    let translatedDescriptions = 0
+    let translatedOptionGroups = 0
+    let translatedOptionChoices = 0
+
+    const { data: categories, error: categoriesError } = await db
+      .from('categories')
+      .select('id, name_el, name_en')
+      .eq('business_id', businessId)
+
+    if (categoriesError) {
+      return { data: null, error: categoriesError.message }
+    }
+
+    for (const category of categories ?? []) {
+      if (!category.name_en && category.name_el) {
+        const translated = await translateGreekToEnglish(category.name_el)
+
+        const { error } = await db
+          .from('categories')
+          .update({ name_en: translated } as never)
+          .eq('id', category.id)
+
+        if (error) {
+          return { data: null, error: error.message }
+        }
+
+        translatedCategories += 1
+      }
+    }
+
+    const { data: products, error: productsError } = await db
+      .from('products')
+      .select('id, name_el, name_en, description_el, description_en')
+      .eq('business_id', businessId)
+
+    if (productsError) {
+      return { data: null, error: productsError.message }
+    }
+
+    for (const product of products ?? []) {
+      const updates: Record<string, string> = {}
+
+      if (!product.name_en && product.name_el) {
+        updates.name_en = await translateGreekToEnglish(product.name_el)
+      }
+
+      if (!product.description_en && product.description_el) {
+        updates.description_en = await translateGreekToEnglish(product.description_el)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await db
+          .from('products')
+          .update(updates as never)
+          .eq('id', product.id)
+
+        if (error) {
+          return { data: null, error: error.message }
+        }
+
+        if (updates.name_en) translatedProducts += 1
+        if (updates.description_en) translatedDescriptions += 1
+      }
+    }
+
+    const { data: optionGroups, error: groupsError } = await db
+      .from('product_option_groups')
+      .select('id, name_el, name_en')
+      .eq('business_id', businessId)
+
+    if (groupsError) {
+      return { data: null, error: groupsError.message }
+    }
+
+    for (const group of optionGroups ?? []) {
+      if (!group.name_en && group.name_el) {
+        const translated = await translateGreekToEnglish(group.name_el)
+
+        const { error } = await db
+          .from('product_option_groups')
+          .update({ name_en: translated } as never)
+          .eq('id', group.id)
+
+        if (error) {
+          return { data: null, error: error.message }
+        }
+
+        translatedOptionGroups += 1
+      }
+    }
+
+    const { data: optionChoices, error: choicesError } = await db
+      .from('product_option_choices')
+      .select('id, name_el, name_en')
+      .eq('business_id', businessId)
+
+    if (choicesError) {
+      return { data: null, error: choicesError.message }
+    }
+
+    for (const choice of optionChoices ?? []) {
+      if (!choice.name_en && choice.name_el) {
+        const translated = await translateGreekToEnglish(choice.name_el)
+
+        const { error } = await db
+          .from('product_option_choices')
+          .update({ name_en: translated } as never)
+          .eq('id', choice.id)
+
+        if (error) {
+          return { data: null, error: error.message }
+        }
+
+        translatedOptionChoices += 1
+      }
+    }
+
+    revalidatePath('/dashboard/menu')
+    revalidatePath('/dashboard', 'layout')
+
+    return {
+      data: {
+        categories: translatedCategories,
+        products: translatedProducts,
+        descriptions: translatedDescriptions,
+        optionGroups: translatedOptionGroups,
+        optionChoices: translatedOptionChoices,
+      },
+      error: null,
+    }
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : 'Αποτυχία αυτόματης μετάφρασης.',
+    }
+  }
+}
+
 export async function getMenuForCustomer(
   slug: string,
   tableId: string,
