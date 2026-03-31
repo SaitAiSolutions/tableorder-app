@@ -1,20 +1,34 @@
-// Path: src/lib/actions/auth.actions.ts
 'use server'
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { isSuperAdminEmail } from '@/lib/utils/admin'
 
 interface ActionResult {
   error: string | null
 }
 
+async function getUserBusinessCount() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return 0
+
+  const { count } = await supabase
+    .from('business_users')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
+  return count ?? 0
+}
+
 // ---------------------------------------------------------------------------
 // signUp
-// Creates a new Supabase auth user. If email confirmation is enabled in the
-// Supabase dashboard, the user receives a confirmation email and is redirected
-// to /auth/verify-email. The handle_new_user DB trigger automatically creates
-// a profiles row when confirmation is complete.
 // ---------------------------------------------------------------------------
 export async function signUp(
   _prev: ActionResult,
@@ -51,6 +65,9 @@ export async function signUp(
 
 // ---------------------------------------------------------------------------
 // signIn
+// Super admin emails always go to /admin.
+// Normal users with at least one business go to /dashboard.
+// Normal users without business go to /onboarding.
 // ---------------------------------------------------------------------------
 export async function signIn(
   _prev: ActionResult,
@@ -58,7 +75,7 @@ export async function signIn(
 ): Promise<ActionResult> {
   const supabase = await createClient()
 
-  const email = formData.get('email') as string
+  const email = (formData.get('email') as string)?.trim().toLowerCase()
   const password = formData.get('password') as string
 
   if (!email || !password) {
@@ -75,23 +92,37 @@ export async function signIn(
   }
 
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+
+  if (isSuperAdminEmail(email)) {
+    redirect('/admin')
+  }
+
+  const businessCount = await getUserBusinessCount()
+
+  if (businessCount > 0) {
+    redirect('/dashboard')
+  }
+
+  redirect('/onboarding')
 }
 
 // ---------------------------------------------------------------------------
 // signOut
+// Clears session and admin business selection cookie.
 // ---------------------------------------------------------------------------
 export async function signOut(): Promise<void> {
   const supabase = await createClient()
+  const cookieStore = await cookies()
+
   await supabase.auth.signOut()
+  cookieStore.delete('admin_business_id')
+
   revalidatePath('/', 'layout')
   redirect('/auth/login')
 }
 
 // ---------------------------------------------------------------------------
 // forgotPassword
-// Sends a password reset email. Always returns success to avoid revealing
-// which email addresses are registered.
 // ---------------------------------------------------------------------------
 export async function forgotPassword(
   _prev: ActionResult,
@@ -117,10 +148,8 @@ export async function forgotPassword(
 
 // ---------------------------------------------------------------------------
 // updatePassword
-// Called from /auth/reset-password after the browser Supabase client has
-// exchanged the recovery token for a session (via onAuthStateChange /
-// PASSWORD_RECOVERY event). By the time this server action runs, the user
-// already has a valid session cookie.
+// After password reset, send super admins to /admin and others based on whether
+// they already belong to a business.
 // ---------------------------------------------------------------------------
 export async function updatePassword(
   _prev: ActionResult,
@@ -144,6 +173,21 @@ export async function updatePassword(
     return { error: error.message }
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+
+  if (isSuperAdminEmail(user?.email)) {
+    redirect('/admin')
+  }
+
+  const businessCount = await getUserBusinessCount()
+
+  if (businessCount > 0) {
+    redirect('/dashboard')
+  }
+
+  redirect('/onboarding')
 }
