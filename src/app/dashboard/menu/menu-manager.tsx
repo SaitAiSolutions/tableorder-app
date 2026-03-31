@@ -53,21 +53,26 @@ export function MenuManager({
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
 
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
-  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [editingCategoryNameEl, setEditingCategoryNameEl] = useState('')
+  const [editingCategoryNameEn, setEditingCategoryNameEn] = useState('')
 
   const [editingProductId, setEditingProductId] = useState<string | null>(null)
-  const [editingProductName, setEditingProductName] = useState('')
-  const [editingProductDescription, setEditingProductDescription] = useState('')
+  const [editingProductNameEl, setEditingProductNameEl] = useState('')
+  const [editingProductNameEn, setEditingProductNameEn] = useState('')
+  const [editingProductDescriptionEl, setEditingProductDescriptionEl] = useState('')
+  const [editingProductDescriptionEn, setEditingProductDescriptionEn] = useState('')
   const [editingProductPrice, setEditingProductPrice] = useState('')
   const [editingProductCategoryId, setEditingProductCategoryId] = useState('')
   const [editingProductFileName, setEditingProductFileName] = useState('')
 
   const [openGroupProductId, setOpenGroupProductId] = useState<string | null>(null)
-  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupNameEl, setNewGroupNameEl] = useState('')
+  const [newGroupNameEn, setNewGroupNameEn] = useState('')
   const [newGroupRequired, setNewGroupRequired] = useState(false)
 
   const [openChoiceGroupId, setOpenChoiceGroupId] = useState<string | null>(null)
-  const [newChoiceName, setNewChoiceName] = useState('')
+  const [newChoiceNameEl, setNewChoiceNameEl] = useState('')
+  const [newChoiceNameEn, setNewChoiceNameEn] = useState('')
   const [newChoicePriceDelta, setNewChoicePriceDelta] = useState('0')
 
   function resetMessages() {
@@ -90,17 +95,18 @@ export function MenuManager({
       setCategoryError(null)
       setCategorySuccess(null)
 
-      const name = (formData.get('name_el') as string)?.trim()
+      const nameEl = (formData.get('name_el') as string)?.trim()
+      const nameEn = (formData.get('name_en') as string)?.trim()
 
-      if (!name) {
-        setCategoryError('Απαιτείται όνομα κατηγορίας.')
+      if (!nameEl) {
+        setCategoryError('Απαιτείται όνομα κατηγορίας στα ελληνικά.')
         return
       }
 
       const result = await createCategory({
         business_id: businessId,
-        name_el: name,
-        name_en: null,
+        name_el: nameEl,
+        name_en: nameEn || null,
         sort_order: categories.length + 1,
         is_active: true,
       })
@@ -119,11 +125,12 @@ export function MenuManager({
       setProductError(null)
       setProductSuccess(null)
 
-      const name = (formData.get('name_el') as string)?.trim()
+      const nameEl = (formData.get('name_el') as string)?.trim()
+      const nameEn = (formData.get('name_en') as string)?.trim()
       const categoryId = (formData.get('category_id') as string)?.trim()
       const rawPrice = (formData.get('price') as string)?.trim()
 
-      if (!name || !categoryId || !rawPrice) {
+      if (!nameEl || !categoryId || !rawPrice) {
         setProductError('Συμπληρώστε όνομα, κατηγορία και τιμή.')
         return
       }
@@ -140,11 +147,12 @@ export function MenuManager({
       const createResult = await createProduct({
         business_id: businessId,
         category_id: categoryId,
-        name_el: name,
-        name_en: null,
+        name_el: nameEl,
+        name_en: nameEn || null,
         description_el:
           ((formData.get('description_el') as string) || '').trim() || null,
-        description_en: null,
+        description_en:
+          ((formData.get('description_en') as string) || '').trim() || null,
         price,
         image_url: null,
         is_available: true,
@@ -260,7 +268,8 @@ export function MenuManager({
 
   function startEditCategory(category: Category) {
     setEditingCategoryId(category.id)
-    setEditingCategoryName(category.name_el)
+    setEditingCategoryNameEl(category.name_el ?? '')
+    setEditingCategoryNameEn(category.name_en ?? '')
     setCategoryError(null)
     setCategorySuccess(null)
   }
@@ -270,14 +279,18 @@ export function MenuManager({
       setCategoryError(null)
       setCategorySuccess(null)
 
-      const trimmed = editingCategoryName.trim()
+      const trimmedEl = editingCategoryNameEl.trim()
+      const trimmedEn = editingCategoryNameEn.trim()
 
-      if (!trimmed) {
-        setCategoryError('Το όνομα κατηγορίας δεν μπορεί να είναι κενό.')
+      if (!trimmedEl) {
+        setCategoryError('Το ελληνικό όνομα κατηγορίας δεν μπορεί να είναι κενό.')
         return
       }
 
-      const result = await updateCategory(categoryId, { name_el: trimmed })
+      const result = await updateCategory(categoryId, {
+        name_el: trimmedEl,
+        name_en: trimmedEn || null,
+      })
 
       if (result.error) {
         setCategoryError(result.error)
@@ -285,7 +298,8 @@ export function MenuManager({
       }
 
       setEditingCategoryId(null)
-      setEditingCategoryName('')
+      setEditingCategoryNameEl('')
+      setEditingCategoryNameEn('')
       setCategorySuccess('Η κατηγορία ενημερώθηκε.')
     })
   }
@@ -346,8 +360,10 @@ export function MenuManager({
 
   function startEditProduct(product: ProductWithOptions) {
     setEditingProductId(product.id)
-    setEditingProductName(product.name_el)
-    setEditingProductDescription(product.description_el ?? '')
+    setEditingProductNameEl(product.name_el ?? '')
+    setEditingProductNameEn(product.name_en ?? '')
+    setEditingProductDescriptionEl(product.description_el ?? '')
+    setEditingProductDescriptionEn(product.description_en ?? '')
     setEditingProductPrice(String(product.price ?? ''))
     setEditingProductCategoryId(product.category_id)
     setEditingProductFileName('')
@@ -357,8 +373,10 @@ export function MenuManager({
 
   function cancelEditProduct() {
     setEditingProductId(null)
-    setEditingProductName('')
-    setEditingProductDescription('')
+    setEditingProductNameEl('')
+    setEditingProductNameEn('')
+    setEditingProductDescriptionEl('')
+    setEditingProductDescriptionEn('')
     setEditingProductPrice('')
     setEditingProductCategoryId('')
     setEditingProductFileName('')
@@ -369,11 +387,12 @@ export function MenuManager({
       setProductError(null)
       setProductSuccess(null)
 
-      const trimmedName = editingProductName.trim()
+      const trimmedNameEl = editingProductNameEl.trim()
+      const trimmedNameEn = editingProductNameEn.trim()
       const trimmedCategoryId = editingProductCategoryId.trim()
       const normalizedPrice = Number(editingProductPrice.replace(',', '.'))
 
-      if (!trimmedName || !trimmedCategoryId || !editingProductPrice.trim()) {
+      if (!trimmedNameEl || !trimmedCategoryId || !editingProductPrice.trim()) {
         setProductError('Συμπληρώστε όνομα, κατηγορία και τιμή.')
         return
       }
@@ -384,9 +403,11 @@ export function MenuManager({
       }
 
       const updateResult = await updateProduct(productId, {
-        name_el: trimmedName,
+        name_el: trimmedNameEl,
+        name_en: trimmedNameEn || null,
         category_id: trimmedCategoryId,
-        description_el: editingProductDescription.trim() || null,
+        description_el: editingProductDescriptionEl.trim() || null,
+        description_en: editingProductDescriptionEn.trim() || null,
         price: normalizedPrice,
       })
 
@@ -427,18 +448,19 @@ export function MenuManager({
     startTransition(async () => {
       resetMessages()
 
-      const trimmedName = newGroupName.trim()
+      const trimmedNameEl = newGroupNameEl.trim()
+      const trimmedNameEn = newGroupNameEn.trim()
 
-      if (!trimmedName) {
-        setProductError('Γράψτε όνομα ομάδας επιλογών.')
+      if (!trimmedNameEl) {
+        setProductError('Γράψτε όνομα ομάδας επιλογών στα ελληνικά.')
         return
       }
 
       const result = await createOptionGroup({
         business_id: businessId,
         product_id: product.id,
-        name_el: trimmedName,
-        name_en: null,
+        name_el: trimmedNameEl,
+        name_en: trimmedNameEn || null,
         is_required: newGroupRequired,
         sort_order: (product.product_option_groups?.length ?? 0) + 1,
       })
@@ -448,7 +470,8 @@ export function MenuManager({
         return
       }
 
-      setNewGroupName('')
+      setNewGroupNameEl('')
+      setNewGroupNameEn('')
       setNewGroupRequired(false)
       setOpenGroupProductId(null)
       setProductSuccess('Η ομάδα επιλογών δημιουργήθηκε.')
@@ -461,11 +484,12 @@ export function MenuManager({
     startTransition(async () => {
       resetMessages()
 
-      const trimmedName = newChoiceName.trim()
+      const trimmedNameEl = newChoiceNameEl.trim()
+      const trimmedNameEn = newChoiceNameEn.trim()
       const priceDelta = Number(newChoicePriceDelta.replace(',', '.'))
 
-      if (!trimmedName) {
-        setProductError('Γράψτε όνομα επιλογής.')
+      if (!trimmedNameEl) {
+        setProductError('Γράψτε όνομα επιλογής στα ελληνικά.')
         return
       }
 
@@ -477,8 +501,8 @@ export function MenuManager({
       const result = await createOptionChoice({
         business_id: businessId,
         group_id: group.id,
-        name_el: trimmedName,
-        name_en: null,
+        name_el: trimmedNameEl,
+        name_en: trimmedNameEn || null,
         price_delta: priceDelta,
         sort_order: (group.product_option_choices?.length ?? 0) + 1,
       })
@@ -488,7 +512,8 @@ export function MenuManager({
         return
       }
 
-      setNewChoiceName('')
+      setNewChoiceNameEl('')
+      setNewChoiceNameEn('')
       setNewChoicePriceDelta('0')
       setOpenChoiceGroupId(null)
       setProductSuccess('Η επιλογή δημιουργήθηκε.')
@@ -561,12 +586,21 @@ export function MenuManager({
               </div>
             ) : null}
 
-            <Field label="Όνομα κατηγορίας" htmlFor="name_el" required>
+            <Field label="Όνομα κατηγορίας (Ελληνικά)" htmlFor="name_el" required>
               <Input
                 id="name_el"
                 name="name_el"
                 placeholder="π.χ. Καφέδες"
                 required
+                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+              />
+            </Field>
+
+            <Field label="Όνομα κατηγορίας (Αγγλικά)" htmlFor="name_en">
+              <Input
+                id="name_en"
+                name="name_en"
+                placeholder="e.g. Coffees"
                 className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
               />
             </Field>
@@ -599,17 +633,31 @@ export function MenuManager({
                   className="rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-3"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       {editingCategoryId === category.id ? (
-                        <Input
-                          value={editingCategoryName}
-                          onChange={(e) => setEditingCategoryName(e.target.value)}
-                          className="rounded-xl border-[#e7ddd3] bg-white py-2"
-                        />
+                        <div className="space-y-3">
+                          <Input
+                            value={editingCategoryNameEl}
+                            onChange={(e) => setEditingCategoryNameEl(e.target.value)}
+                            placeholder="Όνομα κατηγορίας στα ελληνικά"
+                            className="rounded-xl border-[#e7ddd3] bg-white py-2"
+                          />
+                          <Input
+                            value={editingCategoryNameEn}
+                            onChange={(e) => setEditingCategoryNameEn(e.target.value)}
+                            placeholder="Category name in English"
+                            className="rounded-xl border-[#e7ddd3] bg-white py-2"
+                          />
+                        </div>
                       ) : (
-                        <p className="text-sm font-semibold text-gray-900">
-                          {category.name_el}
-                        </p>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {category.name_el}
+                          </p>
+                          <p className="mt-1 text-xs text-[#7b6657]">
+                            EN: {category.name_en || '—'}
+                          </p>
+                        </div>
                       )}
 
                       <p className="mt-1 text-xs text-[#7b6657]">
@@ -642,7 +690,8 @@ export function MenuManager({
                           className="rounded-xl"
                           onClick={() => {
                             setEditingCategoryId(null)
-                            setEditingCategoryName('')
+                            setEditingCategoryNameEl('')
+                            setEditingCategoryNameEn('')
                           }}
                         >
                           Άκυρο
@@ -723,12 +772,21 @@ export function MenuManager({
               </div>
             ) : null}
 
-            <Field label="Όνομα προϊόντος" htmlFor="product_name_el" required>
+            <Field label="Όνομα προϊόντος (Ελληνικά)" htmlFor="product_name_el" required>
               <Input
                 id="product_name_el"
                 name="name_el"
                 placeholder="π.χ. Freddo Espresso"
                 required
+                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+              />
+            </Field>
+
+            <Field label="Όνομα προϊόντος (Αγγλικά)" htmlFor="product_name_en">
+              <Input
+                id="product_name_en"
+                name="name_en"
+                placeholder="e.g. Freddo Espresso"
                 className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
               />
             </Field>
@@ -752,11 +810,20 @@ export function MenuManager({
               </select>
             </Field>
 
-            <Field label="Περιγραφή" htmlFor="description_el">
+            <Field label="Περιγραφή (Ελληνικά)" htmlFor="description_el">
               <Input
                 id="description_el"
                 name="description_el"
                 placeholder="π.χ. Διπλός παγωμένος espresso"
+                className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+              />
+            </Field>
+
+            <Field label="Περιγραφή (Αγγλικά)" htmlFor="description_en">
+              <Input
+                id="description_en"
+                name="description_en"
+                placeholder="e.g. Double iced espresso"
                 className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
               />
             </Field>
@@ -856,11 +923,20 @@ export function MenuManager({
                   >
                     {editingProductId === product.id ? (
                       <div className="space-y-4">
-                        <Field label="Όνομα προϊόντος" htmlFor={`edit-name-${product.id}`} required>
+                        <Field label="Όνομα προϊόντος (Ελληνικά)" htmlFor={`edit-name-el-${product.id}`} required>
                           <Input
-                            id={`edit-name-${product.id}`}
-                            value={editingProductName}
-                            onChange={(e) => setEditingProductName(e.target.value)}
+                            id={`edit-name-el-${product.id}`}
+                            value={editingProductNameEl}
+                            onChange={(e) => setEditingProductNameEl(e.target.value)}
+                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                          />
+                        </Field>
+
+                        <Field label="Όνομα προϊόντος (Αγγλικά)" htmlFor={`edit-name-en-${product.id}`}>
+                          <Input
+                            id={`edit-name-en-${product.id}`}
+                            value={editingProductNameEn}
+                            onChange={(e) => setEditingProductNameEn(e.target.value)}
                             className="rounded-2xl border-[#e7ddd3] bg-white py-3"
                           />
                         </Field>
@@ -880,11 +956,20 @@ export function MenuManager({
                           </select>
                         </Field>
 
-                        <Field label="Περιγραφή" htmlFor={`edit-description-${product.id}`}>
+                        <Field label="Περιγραφή (Ελληνικά)" htmlFor={`edit-description-el-${product.id}`}>
                           <Input
-                            id={`edit-description-${product.id}`}
-                            value={editingProductDescription}
-                            onChange={(e) => setEditingProductDescription(e.target.value)}
+                            id={`edit-description-el-${product.id}`}
+                            value={editingProductDescriptionEl}
+                            onChange={(e) => setEditingProductDescriptionEl(e.target.value)}
+                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                          />
+                        </Field>
+
+                        <Field label="Περιγραφή (Αγγλικά)" htmlFor={`edit-description-en-${product.id}`}>
+                          <Input
+                            id={`edit-description-en-${product.id}`}
+                            value={editingProductDescriptionEn}
+                            onChange={(e) => setEditingProductDescriptionEn(e.target.value)}
                             className="rounded-2xl border-[#e7ddd3] bg-white py-3"
                           />
                         </Field>
@@ -1007,6 +1092,9 @@ export function MenuManager({
                               <p className="mt-1 truncate text-xs text-[#7b6657]">
                                 {product.description_el ?? 'Χωρίς περιγραφή'}
                               </p>
+                              <p className="mt-1 truncate text-xs text-[#8b715d]">
+                                EN: {product.name_en || '—'}
+                              </p>
                             </div>
                           </div>
 
@@ -1061,7 +1149,8 @@ export function MenuManager({
                                 setOpenGroupProductId(
                                   openGroupProductId === product.id ? null : product.id,
                                 )
-                                setNewGroupName('')
+                                setNewGroupNameEl('')
+                                setNewGroupNameEn('')
                                 setNewGroupRequired(false)
                               }}
                             >
@@ -1072,17 +1161,27 @@ export function MenuManager({
                           {openGroupProductId === product.id ? (
                             <div className="mb-4 rounded-2xl border border-[#eee5dc] bg-[#faf7f2] p-4">
                               <div className="grid gap-3 md:grid-cols-2">
-                                <Field label="Όνομα ομάδας" htmlFor={`group-name-${product.id}`} required>
+                                <Field label="Όνομα ομάδας (Ελληνικά)" htmlFor={`group-name-el-${product.id}`} required>
                                   <Input
-                                    id={`group-name-${product.id}`}
-                                    value={newGroupName}
-                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                    id={`group-name-el-${product.id}`}
+                                    value={newGroupNameEl}
+                                    onChange={(e) => setNewGroupNameEl(e.target.value)}
                                     placeholder="π.χ. Ζάχαρη"
                                     className="rounded-2xl border-[#e7ddd3] bg-white py-3"
                                   />
                                 </Field>
 
-                                <div className="flex items-end">
+                                <Field label="Όνομα ομάδας (Αγγλικά)" htmlFor={`group-name-en-${product.id}`}>
+                                  <Input
+                                    id={`group-name-en-${product.id}`}
+                                    value={newGroupNameEn}
+                                    onChange={(e) => setNewGroupNameEn(e.target.value)}
+                                    placeholder="e.g. Sugar"
+                                    className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                                  />
+                                </Field>
+
+                                <div className="flex items-end md:col-span-2">
                                   <label className="flex items-center gap-2 text-sm text-gray-700">
                                     <input
                                       type="checkbox"
@@ -1112,7 +1211,8 @@ export function MenuManager({
                                   className="rounded-xl"
                                   onClick={() => {
                                     setOpenGroupProductId(null)
-                                    setNewGroupName('')
+                                    setNewGroupNameEl('')
+                                    setNewGroupNameEn('')
                                     setNewGroupRequired(false)
                                   }}
                                 >
@@ -1140,6 +1240,9 @@ export function MenuManager({
                                         {group.name_el}
                                       </p>
                                       <p className="mt-1 text-xs text-[#7b6657]">
+                                        EN: {group.name_en || '—'}
+                                      </p>
+                                      <p className="mt-1 text-xs text-[#7b6657]">
                                         {group.is_required
                                           ? 'Υποχρεωτική ομάδα'
                                           : 'Προαιρετική ομάδα'}
@@ -1156,7 +1259,8 @@ export function MenuManager({
                                           setOpenChoiceGroupId(
                                             openChoiceGroupId === group.id ? null : group.id,
                                           )
-                                          setNewChoiceName('')
+                                          setNewChoiceNameEl('')
+                                          setNewChoiceNameEn('')
                                           setNewChoicePriceDelta('0')
                                         }}
                                       >
@@ -1179,15 +1283,28 @@ export function MenuManager({
                                     <div className="mt-3 rounded-2xl border border-[#e8ddd2] bg-white p-4">
                                       <div className="grid gap-3 md:grid-cols-2">
                                         <Field
-                                          label="Όνομα επιλογής"
-                                          htmlFor={`choice-name-${group.id}`}
+                                          label="Όνομα επιλογής (Ελληνικά)"
+                                          htmlFor={`choice-name-el-${group.id}`}
                                           required
                                         >
                                           <Input
-                                            id={`choice-name-${group.id}`}
-                                            value={newChoiceName}
-                                            onChange={(e) => setNewChoiceName(e.target.value)}
+                                            id={`choice-name-el-${group.id}`}
+                                            value={newChoiceNameEl}
+                                            onChange={(e) => setNewChoiceNameEl(e.target.value)}
                                             placeholder="π.χ. Μέτριος"
+                                            className="rounded-2xl border-[#e7ddd3] bg-white py-3"
+                                          />
+                                        </Field>
+
+                                        <Field
+                                          label="Όνομα επιλογής (Αγγλικά)"
+                                          htmlFor={`choice-name-en-${group.id}`}
+                                        >
+                                          <Input
+                                            id={`choice-name-en-${group.id}`}
+                                            value={newChoiceNameEn}
+                                            onChange={(e) => setNewChoiceNameEn(e.target.value)}
+                                            placeholder="e.g. Medium"
                                             className="rounded-2xl border-[#e7ddd3] bg-white py-3"
                                           />
                                         </Field>
@@ -1227,7 +1344,8 @@ export function MenuManager({
                                           className="rounded-xl"
                                           onClick={() => {
                                             setOpenChoiceGroupId(null)
-                                            setNewChoiceName('')
+                                            setNewChoiceNameEl('')
+                                            setNewChoiceNameEn('')
                                             setNewChoicePriceDelta('0')
                                           }}
                                         >
@@ -1247,6 +1365,7 @@ export function MenuManager({
                                         >
                                           <span>
                                             {choice.name_el}
+                                            {choice.name_en ? ` / ${choice.name_en}` : ''}
                                             {Number(choice.price_delta) > 0
                                               ? ` (+${formatCurrency(
                                                   Number(choice.price_delta),
