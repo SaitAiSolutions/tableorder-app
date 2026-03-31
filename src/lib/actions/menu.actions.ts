@@ -102,17 +102,7 @@ async function translateGreekToEnglish(text: string): Promise<string> {
     },
     body: JSON.stringify({
       model: 'gpt-5.4',
-      input: [
-        {
-          role: 'system',
-          content:
-            'You translate Greek menu text into natural English for restaurant and cafe menus. Return only the translated text, with no quotes, no explanation, and no extra formatting.',
-        },
-        {
-          role: 'user',
-          content: input,
-        },
-      ],
+      input: `Translate this Greek cafe/restaurant menu text into natural English. Return only the translation, with no quotes and no explanation.\n\n${input}`,
     }),
   })
 
@@ -122,10 +112,20 @@ async function translateGreekToEnglish(text: string): Promise<string> {
   }
 
   const json = await response.json()
-  const outputText = json?.output_text?.trim?.()
+
+  const outputText =
+    json?.output_text?.trim?.() ||
+    json?.output?.[0]?.content?.[0]?.text?.trim?.() ||
+    json?.output
+      ?.flatMap((item: any) => item?.content ?? [])
+      ?.find((content: any) => typeof content?.text === 'string')
+      ?.text?.trim?.() ||
+    ''
 
   if (!outputText) {
-    throw new Error('OpenAI returned empty translation output.')
+    throw new Error(
+      `OpenAI returned empty translation output. Raw response: ${JSON.stringify(json)}`,
+    )
   }
 
   return outputText
@@ -285,7 +285,8 @@ export async function autoTranslateMenuToEnglish(): Promise<
   } catch (error) {
     return {
       data: null,
-      error: error instanceof Error ? error.message : 'Αποτυχία αυτόματης μετάφρασης.',
+      error:
+        error instanceof Error ? error.message : 'Αποτυχία αυτόματης μετάφρασης.',
     }
   }
 }
