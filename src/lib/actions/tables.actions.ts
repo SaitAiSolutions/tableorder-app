@@ -136,6 +136,81 @@ async function refreshBusinessPlan(businessId: string) {
   revalidatePath('/admin')
 }
 
+async function clearTableAsAdmin(
+  businessId: string,
+  tableId: string,
+): Promise<ActionResult> {
+  const admin = createAdminClient()
+
+  const { data: tableRow, error: tableError } = await admin
+    .from('tables')
+    .select('id, business_id')
+    .eq('id', tableId)
+    .eq('business_id', businessId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (tableError) {
+    return { data: null, error: tableError.message }
+  }
+
+  if (!tableRow) {
+    return { data: null, error: 'Το τραπέζι δεν βρέθηκε.' }
+  }
+
+  const { data: activeSession, error: sessionError } = await admin
+    .from('table_sessions')
+    .select('id')
+    .eq('table_id', tableId)
+    .eq('business_id', businessId)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (sessionError) {
+    return { data: null, error: sessionError.message }
+  }
+
+  if (!activeSession?.id) {
+    return { data: null, error: 'Δεν υπάρχει ενεργή συνεδρία για εκκαθάριση.' }
+  }
+
+  const nowIso = new Date().toISOString()
+
+  const { error: ordersError } = await admin
+    .from('orders')
+    .update({
+      status: 'completed',
+      updated_at: nowIso,
+    } as never)
+    .eq('session_id', activeSession.id)
+    .in('status', ['new', 'accepted', 'preparing', 'ready'])
+
+  if (ordersError) {
+    return { data: null, error: ordersError.message }
+  }
+
+  const { error: sessionUpdateError } = await admin
+    .from('table_sessions')
+    .update({
+      is_active: false,
+      status: 'cleared',
+      cleared_at: nowIso,
+    } as never)
+    .eq('id', activeSession.id)
+
+  if (sessionUpdateError) {
+    return { data: null, error: sessionUpdateError.message }
+  }
+
+  revalidatePath('/dashboard/tables')
+  revalidatePath('/dashboard/orders')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard', 'layout')
+  revalidatePath('/admin')
+
+  return { data: null, error: null }
+}
+
 export async function getTablesWithSessions(
   businessId?: string,
 ): Promise<ActionResult<TableWithActiveSession[]>> {
@@ -469,6 +544,10 @@ export async function clearTable(tableId: string): Promise<ActionResult> {
 
   if (context.error || !businessId) {
     return { data: null, error: context.error ?? 'Δεν βρέθηκε επιχείρηση.' }
+  }
+
+  if (context.useAdmin) {
+    return clearTableAsAdmin(businessId, tableId)
   }
 
   const { data, error } = await client.rpc('clear_table' as never, {
