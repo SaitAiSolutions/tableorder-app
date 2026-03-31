@@ -3,6 +3,7 @@ import { Building2, LogIn, ShieldCheck, Table2 } from 'lucide-react'
 import {
   adminClearBusinessSelection,
   adminSelectBusiness,
+  archiveBusiness,
   getAdminBusinesses,
   isCurrentUserSuperAdmin,
   setBusinessBillingExempt,
@@ -235,6 +236,20 @@ export default async function AdminPage() {
                           {business.billing_exempt
                             ? 'Απενεργοποίηση free access'
                             : 'Ενεργοποίηση free access'}
+                        </button>
+                      </form>
+
+                      <form
+                        action={async () => {
+                          'use server'
+                          await archiveBusiness(business.id)
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center rounded-2xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
+                        >
+                          Αρχειοθέτηση επιχείρησης
                         </button>
                       </form>
 

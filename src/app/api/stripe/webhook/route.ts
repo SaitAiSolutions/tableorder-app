@@ -99,12 +99,38 @@ async function syncOutstandingBalanceForBusiness(
   return outstandingBalance
 }
 
+async function getBusinessById(businessId: string) {
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from('businesses')
+    .select(
+      'id, billing_exempt, stripe_customer_id, stripe_subscription_id, is_active',
+    )
+    .eq('id', businessId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as
+    | {
+        id: string
+        billing_exempt: boolean | null
+        stripe_customer_id: string | null
+        stripe_subscription_id: string | null
+        is_active: boolean | null
+      }
+    | null
+}
+
 async function findBusinessBySubscriptionId(subscriptionId: string) {
   const admin = createAdminClient()
 
   const { data, error } = await admin
     .from('businesses')
-    .select('id, stripe_customer_id, stripe_subscription_id')
+    .select('id, stripe_customer_id, stripe_subscription_id, billing_exempt, is_active')
     .eq('stripe_subscription_id', subscriptionId)
     .maybeSingle()
 
@@ -117,6 +143,8 @@ async function findBusinessBySubscriptionId(subscriptionId: string) {
         id: string
         stripe_customer_id: string | null
         stripe_subscription_id: string | null
+        billing_exempt: boolean | null
+        is_active: boolean | null
       }
     | null
 }
@@ -126,7 +154,7 @@ async function findBusinessByCustomerId(customerId: string) {
 
   const { data, error } = await admin
     .from('businesses')
-    .select('id, stripe_customer_id, stripe_subscription_id')
+    .select('id, stripe_customer_id, stripe_subscription_id, billing_exempt, is_active')
     .eq('stripe_customer_id', customerId)
     .maybeSingle()
 
@@ -139,6 +167,8 @@ async function findBusinessByCustomerId(customerId: string) {
         id: string
         stripe_customer_id: string | null
         stripe_subscription_id: string | null
+        billing_exempt: boolean | null
+        is_active: boolean | null
       }
     | null
 }
@@ -148,6 +178,9 @@ async function updateBusinessFromSubscription(subscription: Stripe.Subscription)
 
   const businessId = subscription.metadata?.business_id
   if (!businessId) return
+
+  const business = await getBusinessById(businessId)
+  if (!business?.id || business.is_active === false) return
 
   const customerId =
     typeof subscription.customer === 'string'
@@ -167,25 +200,44 @@ async function updateBusinessFromSubscription(subscription: Stripe.Subscription)
       ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
       : null
 
+  const billingExempt = Boolean(business.billing_exempt)
+
+  const payload = billingExempt
+    ? {
+        account_status: 'active',
+        subscription_status: nextSubscriptionStatus,
+        subscription_plan: subscription.metadata?.subscription_plan ?? null,
+        stripe_customer_id: customerId,
+        stripe_subscription_id:
+          subscription.status === 'canceled' ? null : subscription.id,
+        current_period_starts_at: toIsoOrNull(subscription.current_period_start),
+        current_period_ends_at: toIsoOrNull(subscription.current_period_end),
+        grace_period_ends_at: null,
+        suspended_at: null,
+        last_payment_failed_at: null,
+      }
+    : {
+        account_status: nextAccountStatus,
+        subscription_status: nextSubscriptionStatus,
+        subscription_plan: subscription.metadata?.subscription_plan ?? null,
+        stripe_customer_id: customerId,
+        stripe_subscription_id:
+          subscription.status === 'canceled' ? null : subscription.id,
+        current_period_starts_at: toIsoOrNull(subscription.current_period_start),
+        current_period_ends_at: toIsoOrNull(subscription.current_period_end),
+        grace_period_ends_at: gracePeriodEndsAt,
+        suspended_at:
+          subscription.status === 'unpaid' ? new Date().toISOString() : null,
+        ...(subscription.status === 'active' || subscription.status === 'trialing'
+          ? {
+              last_payment_failed_at: null,
+            }
+          : {}),
+      }
+
   const { error } = await admin
     .from('businesses')
-    .update({
-      account_status: nextAccountStatus,
-      subscription_status: nextSubscriptionStatus,
-      subscription_plan: subscription.metadata?.subscription_plan ?? null,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: subscription.id,
-      current_period_starts_at: toIsoOrNull(subscription.current_period_start),
-      current_period_ends_at: toIsoOrNull(subscription.current_period_end),
-      grace_period_ends_at: gracePeriodEndsAt,
-      suspended_at:
-        subscription.status === 'unpaid' ? new Date().toISOString() : null,
-      ...(subscription.status === 'active' || subscription.status === 'trialing'
-        ? {
-            last_payment_failed_at: null,
-          }
-        : {}),
-    } as never)
+    .update(payload as never)
     .eq('id', businessId)
 
   if (error) {
@@ -230,6 +282,10 @@ export async function POST(req: Request) {
         }
 
         const businessId = session.metadata?.business_id ?? null
+        if (!businessId) break
+
+        const business = await getBusinessById(businessId)
+        if (!business?.id || business.is_active === false) break
 
         const subscriptionId =
           typeof session.subscription === 'string'
@@ -240,8 +296,6 @@ export async function POST(req: Request) {
           typeof session.customer === 'string'
             ? session.customer
             : session.customer?.id ?? null
-
-        if (!businessId) break
 
         let plan = session.metadata?.subscription_plan ?? 'starter'
         let currentPeriodStart: string | null = null
@@ -298,32 +352,16 @@ export async function POST(req: Request) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-        const businessId = subscription.metadata?.business_id
-        if (!businessId) break
+        const updated = await updateBusinessFromSubscription(subscription)
 
-        const customerId =
-          typeof subscription.customer === 'string'
-            ? subscription.customer
-            : subscription.customer?.id ?? null
-
-        const admin = createAdminClient()
-
-        const { error } = await admin
-          .from('businesses')
-          .update({
-            account_status: 'cancelled',
-            subscription_status: 'cancelled',
-            current_period_starts_at: null,
-            current_period_ends_at: null,
-            grace_period_ends_at: null,
-          } as never)
-          .eq('id', businessId)
-
-        if (error) {
-          throw new Error(error.message)
+        if (updated?.businessId) {
+          await syncOutstandingBalanceForBusiness(
+            stripe,
+            updated.businessId,
+            updated.customerId,
+          )
         }
 
-        await syncOutstandingBalanceForBusiness(stripe, businessId, customerId)
         break
       }
 
@@ -345,6 +383,8 @@ export async function POST(req: Request) {
               id: string
               stripe_customer_id: string | null
               stripe_subscription_id: string | null
+              billing_exempt: boolean | null
+              is_active: boolean | null
             }
           | null = null
 
@@ -356,7 +396,16 @@ export async function POST(req: Request) {
           businessRow = await findBusinessByCustomerId(customerId)
         }
 
-        if (!businessRow?.id) break
+        if (!businessRow?.id || businessRow.is_active === false) break
+
+        if (businessRow.billing_exempt) {
+          await syncOutstandingBalanceForBusiness(
+            stripe,
+            businessRow.id,
+            customerId ?? businessRow.stripe_customer_id,
+          )
+          break
+        }
 
         const admin = createAdminClient()
 
@@ -404,6 +453,8 @@ export async function POST(req: Request) {
               id: string
               stripe_customer_id: string | null
               stripe_subscription_id: string | null
+              billing_exempt: boolean | null
+              is_active: boolean | null
             }
           | null = null
 
@@ -415,7 +466,7 @@ export async function POST(req: Request) {
           businessRow = await findBusinessByCustomerId(customerId)
         }
 
-        if (!businessRow?.id) break
+        if (!businessRow?.id || businessRow.is_active === false) break
 
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId)
@@ -423,6 +474,8 @@ export async function POST(req: Request) {
 
           if (updated?.businessId) {
             const admin = createAdminClient()
+            const business = await getBusinessById(updated.businessId)
+            const billingExempt = Boolean(business?.billing_exempt)
 
             const { error } = await admin
               .from('businesses')
@@ -432,6 +485,7 @@ export async function POST(req: Request) {
                 grace_period_ends_at: null,
                 suspended_at: null,
                 last_payment_failed_at: null,
+                ...(billingExempt ? {} : {}),
               } as never)
               .eq('id', updated.businessId)
 
@@ -447,6 +501,7 @@ export async function POST(req: Request) {
           }
         } else {
           const admin = createAdminClient()
+          const billingExempt = Boolean(businessRow.billing_exempt)
 
           const { error } = await admin
             .from('businesses')
@@ -456,6 +511,7 @@ export async function POST(req: Request) {
               grace_period_ends_at: null,
               suspended_at: null,
               last_payment_failed_at: null,
+              ...(billingExempt ? {} : {}),
             } as never)
             .eq('id', businessRow.id)
 

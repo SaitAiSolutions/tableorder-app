@@ -28,6 +28,8 @@ type AdminBusinessListItem = {
   billing_exempt: boolean
   billing_exempt_reason: string | null
   billing_exempt_set_at: string | null
+  stripe_subscription_id: string | null
+  stripe_customer_id: string | null
 }
 
 function getStripeClient() {
@@ -75,6 +77,25 @@ async function getAuthenticatedUser() {
   } = await supabase.auth.getUser()
 
   return user
+}
+
+async function cancelStripeSubscriptionNow(subscriptionId: string | null | undefined) {
+  if (!subscriptionId) return
+
+  const stripe = getStripeClient()
+
+  try {
+    await stripe.subscriptions.cancel(subscriptionId)
+  } catch (error: any) {
+    if (
+      error?.code === 'resource_missing' ||
+      error?.type === 'invalid_request_error'
+    ) {
+      return
+    }
+
+    throw error
+  }
 }
 
 export async function isCurrentUserSuperAdmin() {
@@ -463,6 +484,8 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
       billing_exempt,
       billing_exempt_reason,
       billing_exempt_set_at,
+      stripe_subscription_id,
+      stripe_customer_id,
       business_users (
         user_id,
         role
@@ -471,6 +494,7 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
         id
       )
     `)
+    .eq('is_active', true)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -489,6 +513,8 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
     billing_exempt?: boolean | null
     billing_exempt_reason?: string | null
     billing_exempt_set_at?: string | null
+    stripe_subscription_id?: string | null
+    stripe_customer_id?: string | null
     business_users?: Array<{ user_id: string; role?: string | null }>
     tables?: Array<{ id: string }>
   }>
@@ -538,6 +564,8 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
       billing_exempt: Boolean(business.billing_exempt),
       billing_exempt_reason: business.billing_exempt_reason ?? null,
       billing_exempt_set_at: business.billing_exempt_set_at ?? null,
+      stripe_subscription_id: business.stripe_subscription_id ?? null,
+      stripe_customer_id: business.stripe_customer_id ?? null,
     }
   })
 
@@ -556,31 +584,114 @@ export async function setBusinessBillingExempt(
 
   const admin = createAdminClient()
 
-  const updatePayload = exempt
-    ? {
+  const { data: business, error: businessError } = await admin
+    .from('businesses')
+    .select('id, stripe_subscription_id, billing_exempt')
+    .eq('id', businessId)
+    .maybeSingle()
+
+  if (businessError) {
+    return { data: null, error: businessError.message }
+  }
+
+  if (!business) {
+    return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
+  }
+
+  if (exempt) {
+    await cancelStripeSubscriptionNow((business as any).stripe_subscription_id)
+
+    const { error } = await admin
+      .from('businesses')
+      .update({
         billing_exempt: true,
         billing_exempt_reason: 'Set by super admin',
         billing_exempt_set_at: new Date().toISOString(),
         account_status: 'active',
-      }
-    : {
+        stripe_subscription_id: null,
+        grace_period_ends_at: null,
+        suspended_at: null,
+        last_payment_failed_at: null,
+      } as never)
+      .eq('id', businessId)
+
+    if (error) {
+      return { data: null, error: error.message }
+    }
+  } else {
+    const { error } = await admin
+      .from('businesses')
+      .update({
         billing_exempt: false,
         billing_exempt_reason: null,
         billing_exempt_set_at: null,
-      }
+      } as never)
+      .eq('id', businessId)
+
+    if (error) {
+      return { data: null, error: error.message }
+    }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/dashboard/billing')
+  revalidatePath('/dashboard', 'layout')
+
+  return { data: null, error: null }
+}
+
+export async function archiveBusiness(businessId: string): Promise<ActionResult> {
+  const user = await getAuthenticatedUser()
+
+  if (!user || !isSuperAdminEmail(user.email)) {
+    return { data: null, error: 'Δεν έχετε πρόσβαση admin.' }
+  }
+
+  const admin = createAdminClient()
+  const cookieStore = await cookies()
+
+  const { data: business, error: businessError } = await admin
+    .from('businesses')
+    .select('id, stripe_subscription_id')
+    .eq('id', businessId)
+    .maybeSingle()
+
+  if (businessError) {
+    return { data: null, error: businessError.message }
+  }
+
+  if (!business) {
+    return { data: null, error: 'Η επιχείρηση δεν βρέθηκε.' }
+  }
+
+  await cancelStripeSubscriptionNow((business as any).stripe_subscription_id)
 
   const { error } = await admin
     .from('businesses')
-    .update(updatePayload as never)
+    .update({
+      is_active: false,
+      account_status: 'cancelled',
+      subscription_status: 'cancelled',
+      stripe_subscription_id: null,
+      billing_exempt: false,
+      billing_exempt_reason: null,
+      billing_exempt_set_at: null,
+    } as never)
     .eq('id', businessId)
 
   if (error) {
     return { data: null, error: error.message }
   }
 
+  const selectedBusinessId = cookieStore.get('admin_business_id')?.value
+  if (selectedBusinessId === businessId) {
+    cookieStore.delete('admin_business_id')
+  }
+
   revalidatePath('/admin')
-  revalidatePath('/dashboard/billing')
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard', 'layout')
+  revalidatePath('/dashboard/billing')
 
   return { data: null, error: null }
 }
