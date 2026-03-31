@@ -13,7 +13,10 @@ import {
   updateTable,
 } from '@/lib/actions/tables.actions'
 import { formatCurrency } from '@/lib/utils/format-currency'
-import type { ServiceRequestType, TableWithActiveSession } from '@/types/database.types'
+import type {
+  ServiceRequestType,
+  TableWithActiveSession,
+} from '@/types/database.types'
 
 interface TableCardProps {
   table: TableWithActiveSession
@@ -31,6 +34,16 @@ function getServiceRequestType(notes?: string | null): ServiceRequestType | null
 
   if (value === 'waiter' || value === 'bill') return value
   return null
+}
+
+function getTableDisplayTitle(tableNumber?: string | null, tableName?: string | null) {
+  const number = String(tableNumber ?? '').trim()
+  const name = String(tableName ?? '').trim()
+
+  if (number && name) return `Τραπέζι ${number} · ${name}`
+  if (number) return `Τραπέζι ${number}`
+  if (name) return name
+  return 'Τραπέζι'
 }
 
 export function TableCard({
@@ -68,6 +81,11 @@ export function TableCard({
   const activeOrders = regularOrders.length
   const activeServiceRequests = serviceRequests.length
   const total = table.active_session?.session_total ?? 0
+
+  const displayTitle = useMemo(
+    () => getTableDisplayTitle(table.table_number, table.name),
+    [table.table_number, table.name],
+  )
 
   const latestActivityAt = useMemo(() => {
     const sessionStartedAt = table.active_session?.started_at
@@ -114,7 +132,7 @@ export function TableCard({
 
   function handleClear() {
     const confirmed = window.confirm(
-      `Θέλετε σίγουρα να εκκαθαρίσετε το τραπέζι ${table.table_number};`,
+      `Θέλετε σίγουρα να εκκαθαρίσετε το ${displayTitle};`,
     )
     if (!confirmed) return
 
@@ -168,7 +186,7 @@ export function TableCard({
     }
 
     const confirmed = window.confirm(
-      `Θέλετε σίγουρα να διαγράψετε το τραπέζι ${table.table_number};`,
+      `Θέλετε σίγουρα να διαγράψετε το ${displayTitle};`,
     )
     if (!confirmed) return
 
@@ -248,7 +266,7 @@ export function TableCard({
 
               <div>
                 <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-[#8b715d]">
-                  Όνομα / σημείωση
+                  Όνομα / περιοχή / σημείωση
                 </label>
                 <Input
                   value={tableName}
@@ -260,10 +278,10 @@ export function TableCard({
           ) : (
             <>
               <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-                Τραπέζι {table.table_number}
+                {displayTitle}
               </h3>
               <p className="mt-1 text-sm text-[#7b6657]">
-                {table.name ?? 'Χωρίς σημείωση'}
+                {table.name?.trim() ? table.name : 'Χωρίς σημείωση'}
               </p>
             </>
           )}

@@ -54,6 +54,19 @@ function getOrderStatusLabel(status: string) {
   return status
 }
 
+function getTableDisplayTitle(table?: {
+  table_number?: string
+  name?: string | null
+} | null) {
+  const number = String(table?.table_number ?? '').trim()
+  const name = String(table?.name ?? '').trim()
+
+  if (number && name) return `Τραπέζι ${number} · ${name}`
+  if (number) return `Τραπέζι ${number}`
+  if (name) return name
+  return 'Τραπέζι'
+}
+
 export function DashboardLiveOverview({
   initialOrders,
   currency,
@@ -81,10 +94,7 @@ export function DashboardLiveOverview({
 
   if (prioritizedActiveItem) {
     const serviceType = getServiceRequestType(prioritizedActiveItem.notes)
-    const tableNumber = prioritizedActiveItem.table?.table_number
-    const tableName = prioritizedActiveItem.table?.name?.trim()
-    const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
-    const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
+    const tableTitle = getTableDisplayTitle(prioritizedActiveItem.table)
 
     return (
       <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
@@ -97,7 +107,7 @@ export function DashboardLiveOverview({
               {serviceType ? getServiceRequestLabel(serviceType) : 'Νέα ενεργή παραγγελία'}
             </h3>
             <p className="mt-3 text-sm leading-6 text-[#7b6657]">
-              {tableSubtitle}
+              {tableTitle}
             </p>
           </div>
 

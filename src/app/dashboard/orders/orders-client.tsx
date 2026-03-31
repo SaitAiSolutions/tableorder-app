@@ -41,6 +41,19 @@ function getServiceRequestType(notes?: string | null): ServiceRequestType | null
   return null
 }
 
+function getTableDisplayTitle(table?: {
+  table_number?: string
+  name?: string | null
+} | null) {
+  const number = String(table?.table_number ?? '').trim()
+  const name = String(table?.name ?? '').trim()
+
+  if (number && name) return `Τραπέζι ${number} · ${name}`
+  if (number) return `Τραπέζι ${number}`
+  if (name) return name
+  return 'Τραπέζι'
+}
+
 function getStatusLabel(status: OrderWithItems['status']) {
   if (status === 'new') return 'Νέα'
   if (status === 'accepted') return 'Αποδεκτή'
@@ -268,10 +281,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
             {serviceOrders.map((order) => {
               const safeOrder = order as OrderWithOptionalTable
               const serviceType = getServiceRequestType(order.notes)
-              const tableNumber = safeOrder.table?.table_number
-              const tableName = safeOrder.table?.name?.trim()
-              const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
-              const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
+              const tableTitle = getTableDisplayTitle(safeOrder.table)
               const nextActionLabel = getNextActionLabel(order.status, serviceType)
 
               return (
@@ -282,7 +292,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                   <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
                       <h4 className="text-lg font-semibold tracking-tight text-gray-900">
-                        {tableSubtitle}
+                        {tableTitle}
                       </h4>
                       <p className="mt-2 text-sm text-[#7b6657]">
                         {new Date(order.created_at).toLocaleString('el-GR')}
@@ -427,10 +437,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                 0,
               ) ?? 0
 
-            const tableNumber = safeOrder.table?.table_number
-            const tableName = safeOrder.table?.name?.trim()
-            const tableLabel = tableNumber ? `Τραπέζι ${tableNumber}` : 'Τραπέζι'
-            const tableSubtitle = tableName ? `${tableLabel} · ${tableName}` : tableLabel
+            const tableTitle = getTableDisplayTitle(safeOrder.table)
             const nextActionLabel = getNextActionLabel(order.status, null)
 
             return (
@@ -442,7 +449,7 @@ export function OrdersClient({ initialOrders }: OrdersClientProps) {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-                        {tableSubtitle}
+                        {tableTitle}
                       </h3>
 
                       <span className="rounded-full bg-[#f5efe7] px-2.5 py-1 text-[11px] font-medium text-[#7b6657]">
