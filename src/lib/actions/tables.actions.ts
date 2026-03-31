@@ -182,7 +182,7 @@ async function clearTableAsAdmin(
       status: 'completed',
       updated_at: nowIso,
     } as never)
-    .eq('session_id', activeSession.id)
+    .eq('table_session_id', activeSession.id)
     .in('status', ['new', 'accepted', 'preparing', 'ready'])
 
   if (ordersError) {
