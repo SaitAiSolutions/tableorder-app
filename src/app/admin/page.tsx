@@ -72,12 +72,36 @@ export default async function AdminPage() {
             </button>
           </form>
 
-          <a
-            href="/dashboard"
-            className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+          <form
+            action={async () => {
+              'use server'
+
+              const preferredBusiness =
+                businesses?.find((business) => business.slug === 'sait-ai-solutions') ??
+                businesses?.find((business) => business.owner_email === 'info@sait.solutions') ??
+                businesses?.[0] ??
+                null
+
+              if (!preferredBusiness) {
+                redirect('/admin')
+              }
+
+              const result = await adminSelectBusiness(preferredBusiness.id)
+
+              if (result.error) {
+                redirect('/admin')
+              }
+
+              redirect('/dashboard')
+            }}
           >
-            Πήγαινε στο dashboard
-          </a>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+            >
+              Άνοιγμα dashboard επιχείρησης
+            </button>
+          </form>
         </div>
 
         {error ? (
