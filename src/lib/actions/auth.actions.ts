@@ -44,12 +44,18 @@ export async function signUp(
     return { error: 'Παρακαλώ συμπληρώστε όλα τα πεδία.' }
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
+  if (!appUrl) {
+    return { error: 'Λείπει το NEXT_PUBLIC_APP_URL από τα environment variables.' }
+  }
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/login`,
+      emailRedirectTo: `${appUrl}/auth/login`,
     },
   })
 
@@ -130,17 +136,25 @@ export async function forgotPassword(
 ): Promise<ActionResult> {
   const supabase = await createClient()
 
-  const email = formData.get('email') as string
+  const email = (formData.get('email') as string)?.trim()
+
   if (!email) {
     return { error: 'Παρακαλώ εισάγετε το email σας.' }
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
+  if (!appUrl) {
+    return { error: 'Λείπει το NEXT_PUBLIC_APP_URL από τα environment variables.' }
+  }
+
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`,
+    redirectTo: `${appUrl}/auth/reset-password`,
   })
 
   if (error) {
     console.error('[forgotPassword]', error.message)
+    return { error: error.message }
   }
 
   return { error: null }
@@ -163,6 +177,7 @@ export async function updatePassword(
   if (!password || password.length < 8) {
     return { error: 'Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.' }
   }
+
   if (password !== confirm) {
     return { error: 'Οι κωδικοί δεν ταιριάζουν.' }
   }
