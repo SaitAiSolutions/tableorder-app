@@ -12,6 +12,7 @@ const initialState = { error: null as string | null }
 
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -21,22 +22,72 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const supabase = createClient()
+    let mounted = true
+
+    async function initRecovery() {
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+          if (error) {
+            if (mounted) {
+              setLinkError('Ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή έχει λήξει.')
+              setReady(false)
+            }
+            return
+          }
+
+          if (mounted) {
+            setReady(true)
+            setLinkError(null)
+          }
+          return
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (session) {
+          if (mounted) {
+            setReady(true)
+            setLinkError(null)
+          }
+          return
+        }
+
+        if (mounted) {
+          setLinkError('Ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή έχει λήξει.')
+          setReady(false)
+        }
+      } catch {
+        if (mounted) {
+          setLinkError('Παρουσιάστηκε πρόβλημα στην επαλήθευση του συνδέσμου.')
+          setReady(false)
+        }
+      }
+    }
+
+    initRecovery()
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+
+      if (event === 'PASSWORD_RECOVERY' || session) {
         setReady(true)
+        setLinkError(null)
       }
     })
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        setReady(true)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -56,6 +107,45 @@ export default function ResetPasswordPage() {
     if (!passwordValue) return false
     return passwordValue.length < 8
   }, [passwordValue])
+
+  if (linkError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+              <svg
+                className="h-6 w-6 text-red-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z"
+                />
+              </svg>
+            </div>
+
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Μη έγκυρος σύνδεσμος
+            </h1>
+
+            <p className="mt-3 text-sm text-gray-600">{linkError}</p>
+
+            <a
+              href="/auth/forgot-password"
+              className="mt-6 inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+            >
+              Ζήτησε νέο email επαναφοράς
+            </a>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!ready) {
     return (
