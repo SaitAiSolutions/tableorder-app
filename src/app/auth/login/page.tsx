@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { signIn } from '@/lib/actions/auth.actions'
 import { Button } from '@/components/ui/button'
 import { Input, Field } from '@/components/ui/input'
@@ -11,6 +12,7 @@ const initialState = { error: null as string | null }
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState(signIn, initialState)
+  const [showPassword, setShowPassword] = useState(false)
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -36,14 +38,29 @@ export default function LoginPage() {
             </Field>
 
             <Field label="Κωδικός" htmlFor="password" required>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  required
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-400 hover:text-gray-700"
+                  aria-label={showPassword ? 'Απόκρυψη κωδικού' : 'Εμφάνιση κωδικού'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </Field>
 
             <div className="flex justify-end">

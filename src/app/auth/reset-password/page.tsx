@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useActionState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { updatePassword } from '@/lib/actions/auth.actions'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,9 @@ const initialState = { error: null as string | null }
 
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [state, action, pending] = useActionState(updatePassword, initialState)
 
   useEffect(() => {
@@ -32,6 +36,14 @@ export default function ResetPasswordPage() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!pending && submitted && state.error !== null) {
+      setSubmitted(false)
+    }
+  }, [pending, submitted, state.error])
+
+  const success = submitted && !pending && state.error === null
 
   if (!ready) {
     return (
@@ -65,31 +77,73 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-          <form action={action} className="flex flex-col gap-5">
+          <form
+            action={(formData) => {
+              setSubmitted(true)
+              return action(formData)
+            }}
+            className="flex flex-col gap-5"
+          >
             <ErrorMessage message={state.error} />
 
+            {success ? (
+              <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                Ο κωδικός αποθηκεύτηκε επιτυχώς.
+              </div>
+            ) : null}
+
             <Field label="Νέος κωδικός" htmlFor="password" required>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Τουλάχιστον 8 χαρακτήρες"
-                minLength={8}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Τουλάχιστον 8 χαρακτήρες"
+                  minLength={8}
+                  required
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-400 hover:text-gray-700"
+                  aria-label={showPassword ? 'Απόκρυψη κωδικού' : 'Εμφάνιση κωδικού'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </Field>
 
             <Field label="Επιβεβαίωση κωδικού" htmlFor="confirm" required>
-              <Input
-                id="confirm"
-                name="confirm"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Επαναλάβετε τον κωδικό"
-                minLength={8}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirm"
+                  name="confirm"
+                  type={showConfirm ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Επαναλάβετε τον κωδικό"
+                  minLength={8}
+                  required
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-400 hover:text-gray-700"
+                  aria-label={showConfirm ? 'Απόκρυψη κωδικού' : 'Εμφάνιση κωδικού'}
+                >
+                  {showConfirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </Field>
 
             <Button type="submit" loading={pending} className="w-full">

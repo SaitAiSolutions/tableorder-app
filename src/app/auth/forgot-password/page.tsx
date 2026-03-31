@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { forgotPassword } from '@/lib/actions/auth.actions'
 import { Button } from '@/components/ui/button'
 import { Input, Field } from '@/components/ui/input'
@@ -11,7 +11,15 @@ const initialState = { error: null as string | null }
 
 export default function ForgotPasswordPage() {
   const [state, action, pending] = useActionState(forgotPassword, initialState)
-  const sent = !pending && state.error === null
+  const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    if (!pending && submitted && state.error !== null) {
+      setSubmitted(false)
+    }
+  }, [pending, submitted, state.error])
+
+  const sent = submitted && !pending && state.error === null
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -47,7 +55,13 @@ export default function ForgotPasswordPage() {
               <p className="mt-2 text-xs text-gray-500">Ελέγξτε και τον φάκελο spam.</p>
             </div>
           ) : (
-            <form action={action} className="flex flex-col gap-5">
+            <form
+              action={(formData) => {
+                setSubmitted(true)
+                return action(formData)
+              }}
+              className="flex flex-col gap-5"
+            >
               <ErrorMessage message={state.error} />
 
               <Field label="Email" htmlFor="email" required>
