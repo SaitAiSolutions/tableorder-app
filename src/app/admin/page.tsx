@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Building2, LogIn, ShieldCheck, Table2 } from 'lucide-react'
 import {
@@ -6,6 +7,7 @@ import {
   archiveBusiness,
   getAdminBusinesses,
   isCurrentUserSuperAdmin,
+  restoreBusiness,
   setBusinessBillingExempt,
 } from '@/lib/actions/business.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
@@ -30,14 +32,51 @@ function getPlanLabel(plan?: string | null, billingExempt?: boolean) {
   return '—'
 }
 
-export default async function AdminPage() {
+type SearchParams =
+  | Promise<Record<string, string | string[] | undefined>>
+  | Record<string, string | string[] | undefined>
+  | undefined
+
+function readQueryValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: SearchParams
+}) {
   const isSuperAdmin = await isCurrentUserSuperAdmin()
 
   if (!isSuperAdmin) {
     redirect('/dashboard')
   }
 
+  const resolvedSearchParams =
+    searchParams && typeof (searchParams as Promise<unknown>).then === 'function'
+      ? await (searchParams as Promise<Record<string, string | string[] | undefined>>)
+      : ((searchParams as Record<string, string | string[] | undefined> | undefined) ?? {})
+
+  const filter = readQueryValue(resolvedSearchParams.filter) ?? 'all'
+
   const { data: businesses, error } = await getAdminBusinesses()
+
+  const allBusinesses = businesses ?? []
+
+  const filteredBusinesses = allBusinesses.filter((business) => {
+    if (filter === 'active') return business.is_active
+    if (filter === 'exempt') return business.is_active && business.billing_exempt
+    if (filter === 'archived') return !business.is_active
+    return true
+  })
+
+  const counts = {
+    all: allBusinesses.length,
+    active: allBusinesses.filter((b) => b.is_active).length,
+    exempt: allBusinesses.filter((b) => b.is_active && b.billing_exempt).length,
+    archived: allBusinesses.filter((b) => !b.is_active).length,
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f3ee] px-4 py-6 sm:px-6 lg:px-8">
@@ -83,25 +122,75 @@ export default async function AdminPage() {
           </a>
         </div>
 
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/admin?filter=all"
+            className={
+              filter === 'all'
+                ? 'inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white'
+                : 'inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]'
+            }
+          >
+            Όλες ({counts.all})
+          </Link>
+
+          <Link
+            href="/admin?filter=active"
+            className={
+              filter === 'active'
+                ? 'inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white'
+                : 'inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]'
+            }
+          >
+            Ενεργές ({counts.active})
+          </Link>
+
+          <Link
+            href="/admin?filter=exempt"
+            className={
+              filter === 'exempt'
+                ? 'inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white'
+                : 'inline-flex items-center justify-center rounded-2xl border border-[#cfe7d5] bg-[#f4fbf6] px-5 py-3 text-sm font-semibold text-[#26734d] hover:bg-[#e9f7ee]'
+            }
+          >
+            Free / Lifetime ({counts.exempt})
+          </Link>
+
+          <Link
+            href="/admin?filter=archived"
+            className={
+              filter === 'archived'
+                ? 'inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white'
+                : 'inline-flex items-center justify-center rounded-2xl border border-[#e5d7cc] bg-white px-5 py-3 text-sm font-semibold text-[#7b6657] hover:bg-[#f8f3ee]'
+            }
+          >
+            Αρχειοθετημένες ({counts.archived})
+          </Link>
+        </div>
+
         {error ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             Σφάλμα φόρτωσης επιχειρήσεων: {error}
           </div>
         ) : null}
 
-        {!businesses || businesses.length === 0 ? (
+        {filteredBusinesses.length === 0 ? (
           <div className="rounded-[24px] border border-dashed border-[#d8cdc1] bg-white p-12 text-center text-sm text-[#7b6657] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-            Δεν υπάρχουν επιχειρήσεις ακόμα.
+            Δεν υπάρχουν επιχειρήσεις σε αυτό το φίλτρο.
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
             {await Promise.all(
-              businesses.map(async (business) => {
+              filteredBusinesses.map(async (business) => {
                 const looksLikeDemo =
                   business.name.toLowerCase().includes('demo') ||
                   business.slug.toLowerCase().includes('demo')
 
-                const { data: tables } = await getTablesWithSessions(business.id)
+                const tablesResult = business.is_active
+                  ? await getTablesWithSessions(business.id)
+                  : { data: null as any }
+
+                const tables = tablesResult.data ?? []
                 const firstTable = tables?.[0] ?? null
                 const customerMenuHref = firstTable
                   ? `/menu/${business.slug}/${firstTable.id}`
@@ -110,7 +199,11 @@ export default async function AdminPage() {
                 return (
                   <div
                     key={business.id}
-                    className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+                    className={
+                      business.is_active
+                        ? 'rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]'
+                        : 'rounded-[24px] border border-[#e5d7cc] bg-[#fbfaf8] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.03)]'
+                    }
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
@@ -125,9 +218,15 @@ export default async function AdminPage() {
                             </span>
                           ) : null}
 
-                          {business.billing_exempt ? (
+                          {business.billing_exempt && business.is_active ? (
                             <span className="rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]">
                               Free / Lifetime
+                            </span>
+                          ) : null}
+
+                          {!business.is_active ? (
+                            <span className="rounded-full bg-[#f2ece5] px-3 py-1 text-xs font-medium text-[#7b6657]">
+                              Archived
                             </span>
                           ) : null}
                         </div>
@@ -151,9 +250,11 @@ export default async function AdminPage() {
                           Status
                         </p>
                         <p className="mt-2 text-sm font-semibold text-gray-900">
-                          {business.billing_exempt
-                            ? 'Exempt'
-                            : getStatusLabel(business.account_status)}
+                          {!business.is_active
+                            ? 'Archived'
+                            : business.billing_exempt
+                              ? 'Exempt'
+                              : getStatusLabel(business.account_status)}
                         </p>
                       </div>
 
@@ -162,9 +263,11 @@ export default async function AdminPage() {
                           Subscription
                         </p>
                         <p className="mt-2 text-sm font-semibold text-gray-900">
-                          {business.billing_exempt
-                            ? 'No monthly charge'
-                            : getStatusLabel(business.subscription_status)}
+                          {!business.is_active
+                            ? 'Disabled'
+                            : business.billing_exempt
+                              ? 'No monthly charge'
+                              : getStatusLabel(business.subscription_status)}
                         </p>
                       </div>
 
@@ -175,7 +278,7 @@ export default async function AdminPage() {
                         <p className="mt-2 text-sm font-semibold text-gray-900">
                           {getPlanLabel(
                             business.subscription_plan,
-                            business.billing_exempt,
+                            business.billing_exempt && business.is_active,
                           )}
                         </p>
                       </div>
@@ -191,74 +294,92 @@ export default async function AdminPage() {
                       </div>
                     </div>
 
-                    {business.billing_exempt_reason ? (
+                    {business.billing_exempt_reason && business.is_active ? (
                       <div className="mt-4 rounded-2xl border border-[#d9eadf] bg-[#f7fcf8] px-4 py-3 text-sm text-[#4a6652]">
                         Billing exempt reason: {business.billing_exempt_reason}
                       </div>
                     ) : null}
 
                     <div className="mt-5 flex flex-wrap gap-3">
-                      <form
-                        action={async () => {
-                          'use server'
-                          const result = await adminSelectBusiness(business.id)
-                          if (!result.error) {
-                            redirect('/dashboard')
-                          }
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
-                        >
-                          <LogIn className="h-4 w-4" />
-                          Άνοιγμα dashboard
-                        </button>
-                      </form>
+                      {business.is_active ? (
+                        <>
+                          <form
+                            action={async () => {
+                              'use server'
+                              const result = await adminSelectBusiness(business.id)
+                              if (!result.error) {
+                                redirect('/dashboard')
+                              }
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                            >
+                              <LogIn className="h-4 w-4" />
+                              Άνοιγμα dashboard
+                            </button>
+                          </form>
 
-                      <form
-                        action={async () => {
-                          'use server'
-                          await setBusinessBillingExempt(
-                            business.id,
-                            !business.billing_exempt,
-                          )
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className={
-                            business.billing_exempt
-                              ? 'inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]'
-                              : 'inline-flex items-center justify-center rounded-2xl border border-[#cfe7d5] bg-[#f4fbf6] px-5 py-3 text-sm font-semibold text-[#26734d] hover:bg-[#e9f7ee]'
-                          }
-                        >
-                          {business.billing_exempt
-                            ? 'Απενεργοποίηση free access'
-                            : 'Ενεργοποίηση free access'}
-                        </button>
-                      </form>
+                          <form
+                            action={async () => {
+                              'use server'
+                              await setBusinessBillingExempt(
+                                business.id,
+                                !business.billing_exempt,
+                              )
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className={
+                                business.billing_exempt
+                                  ? 'inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]'
+                                  : 'inline-flex items-center justify-center rounded-2xl border border-[#cfe7d5] bg-[#f4fbf6] px-5 py-3 text-sm font-semibold text-[#26734d] hover:bg-[#e9f7ee]'
+                              }
+                            >
+                              {business.billing_exempt
+                                ? 'Απενεργοποίηση free access'
+                                : 'Ενεργοποίηση free access'}
+                            </button>
+                          </form>
 
-                      <form
-                        action={async () => {
-                          'use server'
-                          await archiveBusiness(business.id)
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="inline-flex items-center justify-center rounded-2xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
-                        >
-                          Αρχειοθέτηση επιχείρησης
-                        </button>
-                      </form>
+                          <form
+                            action={async () => {
+                              'use server'
+                              await archiveBusiness(business.id)
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="inline-flex items-center justify-center rounded-2xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-600 hover:bg-red-50"
+                            >
+                              Αρχειοθέτηση επιχείρησης
+                            </button>
+                          </form>
 
-                      <a
-                        href={customerMenuHref}
-                        className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
-                      >
-                        {firstTable ? 'Άνοιγμα customer menu' : 'Άνοιγμα τραπεζιών'}
-                      </a>
+                          <a
+                            href={customerMenuHref}
+                            className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
+                          >
+                            {firstTable ? 'Άνοιγμα customer menu' : 'Άνοιγμα τραπεζιών'}
+                          </a>
+                        </>
+                      ) : (
+                        <form
+                          action={async () => {
+                            'use server'
+                            await restoreBusiness(business.id)
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            className="inline-flex items-center justify-center rounded-2xl border border-[#cfe7d5] bg-[#f4fbf6] px-5 py-3 text-sm font-semibold text-[#26734d] hover:bg-[#e9f7ee]"
+                          >
+                            Επαναφορά επιχείρησης
+                          </button>
+                        </form>
+                      )}
                     </div>
                   </div>
                 )

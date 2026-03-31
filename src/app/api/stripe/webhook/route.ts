@@ -474,8 +474,6 @@ export async function POST(req: Request) {
 
           if (updated?.businessId) {
             const admin = createAdminClient()
-            const business = await getBusinessById(updated.businessId)
-            const billingExempt = Boolean(business?.billing_exempt)
 
             const { error } = await admin
               .from('businesses')
@@ -485,7 +483,6 @@ export async function POST(req: Request) {
                 grace_period_ends_at: null,
                 suspended_at: null,
                 last_payment_failed_at: null,
-                ...(billingExempt ? {} : {}),
               } as never)
               .eq('id', updated.businessId)
 
@@ -501,7 +498,6 @@ export async function POST(req: Request) {
           }
         } else {
           const admin = createAdminClient()
-          const billingExempt = Boolean(businessRow.billing_exempt)
 
           const { error } = await admin
             .from('businesses')
@@ -511,7 +507,6 @@ export async function POST(req: Request) {
               grace_period_ends_at: null,
               suspended_at: null,
               last_payment_failed_at: null,
-              ...(billingExempt ? {} : {}),
             } as never)
             .eq('id', businessRow.id)
 

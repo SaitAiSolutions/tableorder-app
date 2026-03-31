@@ -494,7 +494,6 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
         id
       )
     `)
-    .eq('is_active', true)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -692,6 +691,38 @@ export async function archiveBusiness(businessId: string): Promise<ActionResult>
   revalidatePath('/dashboard')
   revalidatePath('/dashboard', 'layout')
   revalidatePath('/dashboard/billing')
+
+  return { data: null, error: null }
+}
+
+export async function restoreBusiness(businessId: string): Promise<ActionResult> {
+  const user = await getAuthenticatedUser()
+
+  if (!user || !isSuperAdminEmail(user.email)) {
+    return { data: null, error: 'Δεν έχετε πρόσβαση admin.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('businesses')
+    .update({
+      is_active: true,
+      account_status: 'trialing',
+      subscription_status: 'trialing',
+      billing_exempt: false,
+      billing_exempt_reason: null,
+      billing_exempt_set_at: null,
+    } as never)
+    .eq('id', businessId)
+
+  if (error) {
+    return { data: null, error: error.message }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/dashboard')
+  revalidatePath('/dashboard', 'layout')
 
   return { data: null, error: null }
 }
