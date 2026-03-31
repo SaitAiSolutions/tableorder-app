@@ -26,7 +26,23 @@ interface CustomerAppProps {
   data: CustomerMenuData
 }
 
+type MenuLanguage = 'en' | 'el'
+
+function getLocalizedText(
+  lang: MenuLanguage,
+  greek?: string | null,
+  english?: string | null,
+  fallback?: string,
+) {
+  if (lang === 'en') {
+    return english?.trim() || greek?.trim() || fallback || ''
+  }
+
+  return greek?.trim() || english?.trim() || fallback || ''
+}
+
 export function CustomerApp({ data }: CustomerAppProps) {
+  const [language, setLanguage] = useState<MenuLanguage>('en')
   const [cart, setCart] = useState<CartItem[]>([])
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
     data.categories[0]?.id ?? null,
@@ -106,7 +122,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
       const nextItem: CartItem = {
         key,
         product_id: product.id,
-        name: product.name_el,
+        name: getLocalizedText(language, product.name_el, product.name_en, 'Product'),
         base_price: basePrice,
         quantity: 1,
         options: [],
@@ -124,7 +140,11 @@ export function CustomerApp({ data }: CustomerAppProps) {
 
     for (const group of optionGroups) {
       if (group.is_required && !selectedChoices[group.id]) {
-        setOptionError(`Παρακαλώ επιλέξτε: ${group.name_el}`)
+        setOptionError(
+          language === 'en'
+            ? `Please select: ${getLocalizedText(language, group.name_el, group.name_en, 'Option')}`
+            : `Παρακαλώ επιλέξτε: ${getLocalizedText(language, group.name_el, group.name_en, 'Επιλογή')}`,
+        )
         return
       }
     }
@@ -141,9 +161,14 @@ export function CustomerApp({ data }: CustomerAppProps) {
 
         return {
           group_id: group.id,
-          group_name: group.name_el,
+          group_name: getLocalizedText(language, group.name_el, group.name_en, 'Option'),
           choice_id: choice.id,
-          choice_name: choice.name_el,
+          choice_name: getLocalizedText(
+            language,
+            choice.name_el,
+            choice.name_en,
+            'Choice',
+          ),
           price_delta: Number(choice.price_delta ?? 0),
         }
       })
@@ -176,7 +201,12 @@ export function CustomerApp({ data }: CustomerAppProps) {
       const nextItem: CartItem = {
         key,
         product_id: optionProduct.id,
-        name: optionProduct.name_el,
+        name: getLocalizedText(
+          language,
+          optionProduct.name_el,
+          optionProduct.name_en,
+          'Product',
+        ),
         base_price: finalUnitPrice,
         quantity: 1,
         options: selectedOptionObjects,
@@ -271,8 +301,12 @@ export function CustomerApp({ data }: CustomerAppProps) {
 
     setServiceMessage(
       type === 'waiter'
-        ? 'Η κλήση σερβιτόρου στάλθηκε επιτυχώς.'
-        : 'Το αίτημα λογαριασμού στάλθηκε επιτυχώς.',
+        ? language === 'en'
+          ? 'Waiter call sent successfully.'
+          : 'Η κλήση σερβιτόρου στάλθηκε επιτυχώς.'
+        : language === 'en'
+          ? 'Bill request sent successfully.'
+          : 'Το αίτημα λογαριασμού στάλθηκε επιτυχώς.',
     )
   }
 
@@ -295,20 +329,50 @@ export function CustomerApp({ data }: CustomerAppProps) {
       <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6">
         <div className="mb-6 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
           <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-6 py-8 text-white">
-            <div className="max-w-2xl">
-              <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white/90">
-                Digital Menu
-              </p>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                {data.business.name}
-              </h1>
-              <p className="mt-2 text-sm text-white/80 sm:text-base">
-                Καλώς ήρθατε. Δείτε το μενού και στείλτε την παραγγελία σας
-                εύκολα από το κινητό.
-              </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-2xl">
+                <p className="mb-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-white/90">
+                  Digital Menu
+                </p>
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  {data.business.name}
+                </h1>
+                <p className="mt-2 text-sm text-white/80 sm:text-base">
+                  {language === 'en'
+                    ? 'Welcome. Browse the menu and place your order easily from your phone.'
+                    : 'Καλώς ήρθατε. Δείτε το μενού και στείλτε την παραγγελία σας εύκολα από το κινητό.'}
+                </p>
 
-              <div className="mt-5 inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                Τραπέζι {data.table.table_number}
+                <div className="mt-5 inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                  {language === 'en'
+                    ? `Table ${data.table.table_number}`
+                    : `Τραπέζι ${data.table.table_number}`}
+                </div>
+              </div>
+
+              <div className="inline-flex w-fit items-center rounded-full bg-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setLanguage('en')}
+                  className={
+                    language === 'en'
+                      ? 'rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1f2937]'
+                      : 'rounded-full px-4 py-2 text-sm font-semibold text-white/85'
+                  }
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('el')}
+                  className={
+                    language === 'el'
+                      ? 'rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1f2937]'
+                      : 'rounded-full px-4 py-2 text-sm font-semibold text-white/85'
+                  }
+                >
+                  EL
+                </button>
               </div>
             </div>
           </div>
@@ -339,16 +403,24 @@ export function CustomerApp({ data }: CustomerAppProps) {
               </div>
               <div>
                 <p className="text-base font-semibold text-gray-900">
-                  Κλήση σερβιτόρου
+                  {language === 'en' ? 'Call waiter' : 'Κλήση σερβιτόρου'}
                 </p>
                 <p className="mt-1 text-sm text-[#7b6657]">
-                  Στείλτε ειδοποίηση στο προσωπικό για το τραπέζι σας.
+                  {language === 'en'
+                    ? 'Send a notification to the staff for your table.'
+                    : 'Στείλτε ειδοποίηση στο προσωπικό για το τραπέζι σας.'}
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white">
-              {serviceSubmitting === 'waiter' ? 'Αποστολή...' : 'Κλήση'}
+              {serviceSubmitting === 'waiter'
+                ? language === 'en'
+                  ? 'Sending...'
+                  : 'Αποστολή...'
+                : language === 'en'
+                  ? 'Call'
+                  : 'Κλήση'}
             </div>
           </button>
 
@@ -364,16 +436,24 @@ export function CustomerApp({ data }: CustomerAppProps) {
               </div>
               <div>
                 <p className="text-base font-semibold text-gray-900">
-                  Αίτημα λογαριασμού
+                  {language === 'en' ? 'Request bill' : 'Αίτημα λογαριασμού'}
                 </p>
                 <p className="mt-1 text-sm text-[#7b6657]">
-                  Στείλτε αίτημα για λογαριασμό στο προσωπικό.
+                  {language === 'en'
+                    ? 'Send a bill request to the staff.'
+                    : 'Στείλτε αίτημα για λογαριασμό στο προσωπικό.'}
                 </p>
               </div>
             </div>
 
             <div className="rounded-2xl bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white">
-              {serviceSubmitting === 'bill' ? 'Αποστολή...' : 'Αίτημα'}
+              {serviceSubmitting === 'bill'
+                ? language === 'en'
+                  ? 'Sending...'
+                  : 'Αποστολή...'
+                : language === 'en'
+                  ? 'Request'
+                  : 'Αίτημα'}
             </div>
           </button>
         </div>
@@ -383,6 +463,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
             categories={data.categories}
             activeCategoryId={activeCategory?.id ?? null}
             onSelect={setActiveCategoryId}
+            language={language}
           />
         </div>
 
@@ -392,11 +473,14 @@ export function CustomerApp({ data }: CustomerAppProps) {
               category={activeCategory}
               currency={data.business.currency}
               onAdd={addToCart}
+              language={language}
             />
           </div>
         ) : (
           <div className="mt-8 rounded-[24px] border border-dashed border-[#d9cec3] bg-white p-12 text-center text-sm text-gray-500 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-            Δεν υπάρχουν διαθέσιμες κατηγορίες.
+            {language === 'en'
+              ? 'There are no available categories.'
+              : 'Δεν υπάρχουν διαθέσιμες κατηγορίες.'}
           </div>
         )}
       </div>
@@ -406,6 +490,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
         totalAmount={totalAmount}
         currency={data.business.currency}
         onOpen={() => setCartOpen(true)}
+        language={language}
       />
 
       <CartSheet
@@ -419,6 +504,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
         onDecrease={decreaseItem}
         onSubmit={handleSubmitOrder}
         submitting={submitting}
+        language={language}
       />
 
       <OrderConfirmation
@@ -433,10 +519,17 @@ export function CustomerApp({ data }: CustomerAppProps) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">
-                    {optionProduct.name_el}
+                    {getLocalizedText(
+                      language,
+                      optionProduct.name_el,
+                      optionProduct.name_en,
+                      'Product',
+                    )}
                   </h3>
                   <p className="mt-1 text-sm text-[#7b6657]">
-                    Επιλέξτε τις παραμέτρους του προϊόντος πριν το προσθέσετε.
+                    {language === 'en'
+                      ? 'Choose product options before adding it to your cart.'
+                      : 'Επιλέξτε τις παραμέτρους του προϊόντος πριν το προσθέσετε.'}
                   </p>
                 </div>
 
@@ -460,10 +553,16 @@ export function CustomerApp({ data }: CustomerAppProps) {
                 >
                   <div className="mb-3">
                     <h4 className="text-sm font-semibold text-gray-900">
-                      {group.name_el}
+                      {getLocalizedText(language, group.name_el, group.name_en, 'Option')}
                     </h4>
                     <p className="mt-1 text-xs text-[#7b6657]">
-                      {group.is_required ? 'Υποχρεωτική επιλογή' : 'Προαιρετική επιλογή'}
+                      {group.is_required
+                        ? language === 'en'
+                          ? 'Required option'
+                          : 'Υποχρεωτική επιλογή'
+                        : language === 'en'
+                          ? 'Optional option'
+                          : 'Προαιρετική επιλογή'}
                     </p>
                   </div>
 
@@ -483,7 +582,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
                               : 'rounded-full border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] transition hover:bg-[#f6efe8]'
                           }
                         >
-                          {choice.name_el}
+                          {getLocalizedText(language, choice.name_el, choice.name_en, 'Choice')}
                           {extra > 0
                             ? ` (+${formatCurrency(extra, data.business.currency)})`
                             : ''}
@@ -499,7 +598,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.12em] text-[#8a6d58]">
-                    Τελική τιμή
+                    {language === 'en' ? 'Final price' : 'Τελική τιμή'}
                   </p>
                   <p className="mt-1 text-xl font-semibold text-gray-900">
                     {formatCurrency(optionFinalPrice, data.business.currency)}
@@ -513,7 +612,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
                     className="rounded-xl"
                     onClick={closeOptionsModal}
                   >
-                    Άκυρο
+                    {language === 'en' ? 'Cancel' : 'Άκυρο'}
                   </Button>
 
                   <Button
@@ -521,7 +620,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
                     className="rounded-xl bg-[#1f2937] text-white hover:bg-[#111827]"
                     onClick={handleConfirmOptions}
                   >
-                    Προσθήκη στο καλάθι
+                    {language === 'en' ? 'Add to cart' : 'Προσθήκη στο καλάθι'}
                   </Button>
                 </div>
               </div>

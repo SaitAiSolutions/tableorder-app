@@ -3,11 +3,14 @@
 import { ShoppingBag } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/format-currency'
 
+type MenuLanguage = 'en' | 'el'
+
 interface CartBarProps {
   totalItems: number
   totalAmount: number
   currency: string
   onOpen: () => void
+  language: MenuLanguage
 }
 
 export function CartBar({
@@ -15,6 +18,7 @@ export function CartBar({
   totalAmount,
   currency,
   onOpen,
+  language,
 }: CartBarProps) {
   if (totalItems === 0) return null
 
@@ -33,16 +37,19 @@ export function CartBar({
 
             <div className="min-w-0">
               <p className="text-sm font-semibold">
-                {totalItems} {totalItems === 1 ? 'προϊόν' : 'προϊόντα'}
+                {language === 'en'
+                  ? `${totalItems} ${totalItems === 1 ? 'item' : 'items'}`
+                  : `${totalItems} ${totalItems === 1 ? 'προϊόν' : 'προϊόντα'}`}
               </p>
               <p className="text-sm text-white/75">
-                Σύνολο: {formatCurrency(totalAmount, currency)}
+                {language === 'en' ? 'Total' : 'Σύνολο'}:{' '}
+                {formatCurrency(totalAmount, currency)}
               </p>
             </div>
           </div>
 
           <div className="shrink-0 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-[#1f2937]">
-            Προβολή
+            {language === 'en' ? 'View' : 'Προβολή'}
           </div>
         </button>
       </div>

@@ -5,6 +5,8 @@ import { ShoppingBag, StickyNote, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import type { CartItem } from '@/types/database.types'
 
+type MenuLanguage = 'en' | 'el'
+
 interface CartSheetProps {
   open: boolean
   cart: CartItem[]
@@ -16,6 +18,7 @@ interface CartSheetProps {
   onDecrease: (key: string) => void
   onSubmit: () => void | Promise<void>
   submitting?: boolean
+  language: MenuLanguage
 }
 
 export function CartSheet({
@@ -29,6 +32,7 @@ export function CartSheet({
   onDecrease,
   onSubmit,
   submitting = false,
+  language,
 }: CartSheetProps) {
   useEffect(() => {
     if (!open) return
@@ -72,7 +76,7 @@ export function CartSheet({
                 Checkout
               </p>
               <h3 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900">
-                Η παραγγελία σας
+                {language === 'en' ? 'Your order' : 'Η παραγγελία σας'}
               </h3>
             </div>
 
@@ -87,7 +91,7 @@ export function CartSheet({
 
           {cart.length === 0 ? (
             <div className="rounded-[22px] border border-dashed border-[#d9cec3] bg-white p-10 text-center text-sm text-gray-500">
-              Το καλάθι είναι άδειο.
+              {language === 'en' ? 'Your cart is empty.' : 'Το καλάθι είναι άδειο.'}
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -100,10 +104,13 @@ export function CartSheet({
 
                     <div>
                       <p className="font-semibold text-gray-900">
-                        {totalItems} {totalItems === 1 ? 'προϊόν' : 'προϊόντα'} στο καλάθι
+                        {language === 'en'
+                          ? `${totalItems} ${totalItems === 1 ? 'item' : 'items'} in cart`
+                          : `${totalItems} ${totalItems === 1 ? 'προϊόν' : 'προϊόντα'} στο καλάθι`}
                       </p>
                       <p className="text-[#7b6657]">
-                        Σύνολο: {formatCurrency(totalAmount, currency)}
+                        {language === 'en' ? 'Total' : 'Σύνολο'}:{' '}
+                        {formatCurrency(totalAmount, currency)}
                       </p>
                     </div>
                   </div>
@@ -121,7 +128,8 @@ export function CartSheet({
                             {item.name}
                           </p>
                           <p className="mt-1 text-sm text-[#7b6657]">
-                            {formatCurrency(item.base_price, currency)} / τεμ.
+                            {formatCurrency(item.base_price, currency)} /{' '}
+                            {language === 'en' ? 'item' : 'τεμ.'}
                           </p>
 
                           {item.options.length > 0 ? (
@@ -185,10 +193,12 @@ export function CartSheet({
                         htmlFor="order-notes"
                         className="block text-sm font-medium text-gray-900"
                       >
-                        Σημείωση παραγγελίας
+                        {language === 'en' ? 'Order note' : 'Σημείωση παραγγελίας'}
                       </label>
                       <p className="text-xs text-[#7b6657]">
-                        Προαιρετικό, για ειδικές οδηγίες προς το προσωπικό.
+                        {language === 'en'
+                          ? 'Optional, for special instructions to the staff.'
+                          : 'Προαιρετικό, για ειδικές οδηγίες προς το προσωπικό.'}
                       </p>
                     </div>
                   </div>
@@ -197,7 +207,11 @@ export function CartSheet({
                     id="order-notes"
                     value={notes}
                     onChange={(e) => onNotesChange(e.target.value)}
-                    placeholder="π.χ. χωρίς πάγο, με λίγο γάλα, φέρτε και νερό"
+                    placeholder={
+                      language === 'en'
+                        ? 'e.g. no ice, with a little milk, please bring water too'
+                        : 'π.χ. χωρίς πάγο, με λίγο γάλα, φέρτε και νερό'
+                    }
                     rows={3}
                     className="w-full rounded-2xl border border-[#e7ddd3] bg-[#fffdfa] px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#c9b29d] focus:ring-2 focus:ring-[#efe4d8]"
                   />
@@ -206,7 +220,9 @@ export function CartSheet({
                 <div className="rounded-[24px] border border-[#eadfd3] bg-white p-4 shadow-[0_6px_20px_rgba(15,23,42,0.04)]">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm text-[#7b6657]">Τελικό σύνολο</p>
+                      <p className="text-sm text-[#7b6657]">
+                        {language === 'en' ? 'Final total' : 'Τελικό σύνολο'}
+                      </p>
                       <p className="mt-1 text-2xl font-semibold tracking-tight text-gray-900">
                         {formatCurrency(totalAmount, currency)}
                       </p>
@@ -214,10 +230,12 @@ export function CartSheet({
 
                     <div className="rounded-2xl bg-[#f6efe8] px-3 py-2 text-right">
                       <p className="text-[11px] uppercase tracking-[0.12em] text-[#8a6d58]">
-                        Έτοιμο για αποστολή
+                        {language === 'en' ? 'Ready to send' : 'Έτοιμο για αποστολή'}
                       </p>
                       <p className="mt-1 text-sm font-semibold text-gray-900">
-                        {totalItems} {totalItems === 1 ? 'είδος' : 'είδη'}
+                        {language === 'en'
+                          ? `${totalItems} ${totalItems === 1 ? 'item' : 'items'}`
+                          : `${totalItems} ${totalItems === 1 ? 'είδος' : 'είδη'}`}
                       </p>
                     </div>
                   </div>
@@ -228,11 +246,19 @@ export function CartSheet({
                     disabled={submitting || cart.length === 0}
                     className="inline-flex w-full items-center justify-center rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {submitting ? 'Αποστολή παραγγελίας...' : 'Αποστολή παραγγελίας'}
+                    {submitting
+                      ? language === 'en'
+                        ? 'Sending order...'
+                        : 'Αποστολή παραγγελίας...'
+                      : language === 'en'
+                        ? 'Send order'
+                        : 'Αποστολή παραγγελίας'}
                   </button>
 
                   <p className="mt-3 text-center text-xs text-[#8a6d58]">
-                    Η παραγγελία αποστέλλεται άμεσα στο προσωπικό του καταστήματος.
+                    {language === 'en'
+                      ? 'Your order is sent directly to the staff.'
+                      : 'Η παραγγελία αποστέλλεται άμεσα στο προσωπικό του καταστήματος.'}
                   </p>
                 </div>
               </div>
