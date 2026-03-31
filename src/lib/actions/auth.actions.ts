@@ -154,7 +154,15 @@ export async function forgotPassword(
 
   if (error) {
     console.error('[forgotPassword]', error.message)
-    return { error: error.message }
+
+    if (error.message.toLowerCase().includes('email rate limit exceeded')) {
+      return {
+        error:
+          'Έγιναν πολλές προσπάθειες αποστολής email. Περιμένετε λίγο και δοκιμάστε ξανά.',
+      }
+    }
+
+    return { error: 'Δεν ήταν δυνατή η αποστολή email επαναφοράς αυτή τη στιγμή.' }
   }
 
   return { error: null }
