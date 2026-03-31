@@ -51,7 +51,7 @@ export default function LoginPage() {
                 href="/auth/forgot-password"
                 className="text-xs text-gray-500 hover:text-gray-900"
               >
-                Ξεχάσατε τον κωδικό;
+                Ξέχασα τον κωδικό
               </Link>
             </div>
 

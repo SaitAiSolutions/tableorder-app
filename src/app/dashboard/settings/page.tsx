@@ -2,6 +2,7 @@ import { getCurrentBusiness } from '@/lib/actions/business.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 import { SettingsForm } from './settings-form'
 import { TableManager } from './table-manager'
+import { PasswordForm } from './password-form'
 
 export default async function DashboardSettingsPage() {
   const { data: business } = await getCurrentBusiness()
@@ -19,17 +20,16 @@ export default async function DashboardSettingsPage() {
           Ρυθμίσεις
         </h2>
         <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Διαχείριση στοιχείων επιχείρησης, εμφάνισης και τραπεζιών.
+          Διαχείριση στοιχείων επιχείρησης, εμφάνισης, τραπεζιών και κωδικού πρόσβασης.
         </p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SettingsForm business={business} />
-        <TableManager
-          tables={tables ?? []}
-          businessSlug={business.slug}
-        />
+        <TableManager tables={tables ?? []} businessSlug={business.slug} />
       </div>
+
+      <PasswordForm />
     </div>
   )
 }

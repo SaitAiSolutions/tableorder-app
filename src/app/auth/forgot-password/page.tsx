@@ -27,8 +27,18 @@ export default function ForgotPasswordPage() {
           {sent ? (
             <div className="text-center">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-50">
-                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="h-6 w-6 text-green-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               </div>
               <p className="text-sm text-gray-700">
@@ -39,6 +49,7 @@ export default function ForgotPasswordPage() {
           ) : (
             <form action={action} className="flex flex-col gap-5">
               <ErrorMessage message={state.error} />
+
               <Field label="Email" htmlFor="email" required>
                 <Input
                   id="email"
@@ -49,6 +60,7 @@ export default function ForgotPasswordPage() {
                   required
                 />
               </Field>
+
               <Button type="submit" loading={pending} className="w-full">
                 Αποστολή συνδέσμου
               </Button>
