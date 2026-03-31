@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useEffect, useMemo, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { updatePassword } from '@/lib/actions/auth.actions'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ export function PasswordForm() {
   const [submitted, setSubmitted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [passwordValue, setPasswordValue] = useState('')
+  const [confirmValue, setConfirmValue] = useState('')
   const [state, action, pending] = useActionState(updatePassword, initialState)
 
   useEffect(() => {
@@ -22,6 +24,16 @@ export function PasswordForm() {
   }, [pending, submitted, state.error])
 
   const success = submitted && !pending && state.error === null
+
+  const passwordsMismatch = useMemo(() => {
+    if (!passwordValue || !confirmValue) return false
+    return passwordValue !== confirmValue
+  }, [passwordValue, confirmValue])
+
+  const passwordTooShort = useMemo(() => {
+    if (!passwordValue) return false
+    return passwordValue.length < 8
+  }, [passwordValue])
 
   return (
     <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
@@ -39,6 +51,10 @@ export function PasswordForm() {
 
       <form
         action={(formData) => {
+          if (passwordValue !== confirmValue || passwordValue.length < 8) {
+            return
+          }
+
           setSubmitted(true)
           return action(formData)
         }}
@@ -65,6 +81,8 @@ export function PasswordForm() {
               placeholder="Τουλάχιστον 8 χαρακτήρες"
               required
               className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3 pr-12"
+              value={passwordValue}
+              onChange={(e) => setPasswordValue(e.target.value)}
             />
             <button
               type="button"
@@ -92,6 +110,8 @@ export function PasswordForm() {
               placeholder="Επαναλάβετε τον κωδικό"
               required
               className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3 pr-12"
+              value={confirmValue}
+              onChange={(e) => setConfirmValue(e.target.value)}
             />
             <button
               type="button"
@@ -108,8 +128,25 @@ export function PasswordForm() {
           </div>
         </Field>
 
+        {passwordTooShort ? (
+          <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.
+          </div>
+        ) : null}
+
+        {passwordsMismatch ? (
+          <div className="md:col-span-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            Οι δύο κωδικοί δεν ταιριάζουν.
+          </div>
+        ) : null}
+
         <div className="md:col-span-2">
-          <Button type="submit" loading={pending} className="rounded-2xl">
+          <Button
+            type="submit"
+            loading={pending}
+            className="rounded-2xl"
+            disabled={passwordTooShort || passwordsMismatch}
+          >
             Αποθήκευση νέου κωδικού
           </Button>
         </div>

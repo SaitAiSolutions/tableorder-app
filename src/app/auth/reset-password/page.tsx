@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useActionState } from 'react'
+import { useEffect, useMemo, useState, useActionState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { updatePassword } from '@/lib/actions/auth.actions'
@@ -15,6 +15,8 @@ export default function ResetPasswordPage() {
   const [submitted, setSubmitted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [passwordValue, setPasswordValue] = useState('')
+  const [confirmValue, setConfirmValue] = useState('')
   const [state, action, pending] = useActionState(updatePassword, initialState)
 
   useEffect(() => {
@@ -44,6 +46,16 @@ export default function ResetPasswordPage() {
   }, [pending, submitted, state.error])
 
   const success = submitted && !pending && state.error === null
+
+  const passwordsMismatch = useMemo(() => {
+    if (!passwordValue || !confirmValue) return false
+    return passwordValue !== confirmValue
+  }, [passwordValue, confirmValue])
+
+  const passwordTooShort = useMemo(() => {
+    if (!passwordValue) return false
+    return passwordValue.length < 8
+  }, [passwordValue])
 
   if (!ready) {
     return (
@@ -79,6 +91,10 @@ export default function ResetPasswordPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
           <form
             action={(formData) => {
+              if (passwordValue !== confirmValue || passwordValue.length < 8) {
+                return
+              }
+
               setSubmitted(true)
               return action(formData)
             }}
@@ -103,6 +119,8 @@ export default function ResetPasswordPage() {
                   minLength={8}
                   required
                   className="pr-12"
+                  value={passwordValue}
+                  onChange={(e) => setPasswordValue(e.target.value)}
                 />
                 <button
                   type="button"
@@ -130,6 +148,8 @@ export default function ResetPasswordPage() {
                   minLength={8}
                   required
                   className="pr-12"
+                  value={confirmValue}
+                  onChange={(e) => setConfirmValue(e.target.value)}
                 />
                 <button
                   type="button"
@@ -146,7 +166,24 @@ export default function ResetPasswordPage() {
               </div>
             </Field>
 
-            <Button type="submit" loading={pending} className="w-full">
+            {passwordTooShort ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.
+              </div>
+            ) : null}
+
+            {passwordsMismatch ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Οι δύο κωδικοί δεν ταιριάζουν.
+              </div>
+            ) : null}
+
+            <Button
+              type="submit"
+              loading={pending}
+              className="w-full"
+              disabled={passwordTooShort || passwordsMismatch}
+            >
               Αποθήκευση νέου κωδικού
             </Button>
           </form>
