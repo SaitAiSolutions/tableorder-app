@@ -28,6 +28,53 @@ export default function ResetPasswordPage() {
       try {
         const url = new URL(window.location.href)
         const code = url.searchParams.get('code')
+        const tokenHash = url.searchParams.get('token_hash')
+        const type = url.searchParams.get('type')
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (error) {
+            if (mounted) {
+              setLinkError('Ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή έχει λήξει.')
+              setReady(false)
+            }
+            return
+          }
+
+          if (mounted) {
+            setReady(true)
+            setLinkError(null)
+          }
+          return
+        }
+
+        if (tokenHash && type === 'recovery') {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery',
+          })
+
+          if (error) {
+            if (mounted) {
+              setLinkError('Ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή έχει λήξει.')
+              setReady(false)
+            }
+            return
+          }
+
+          if (mounted) {
+            setReady(true)
+            setLinkError(null)
+          }
+          return
+        }
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -78,7 +125,7 @@ export default function ResetPasswordPage() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
 
-      if (event === 'PASSWORD_RECOVERY' || session) {
+      if (event === 'PASSWORD_RECOVERY' || !!session) {
         setReady(true)
         setLinkError(null)
       }
