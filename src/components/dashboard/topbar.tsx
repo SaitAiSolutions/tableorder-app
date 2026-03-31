@@ -1,6 +1,7 @@
 import { LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentBusiness, isCurrentUserSuperAdmin } from '@/lib/actions/business.actions'
+import { signOut } from '@/lib/actions/auth.actions'
 
 export async function Topbar() {
   const supabase = await createClient()
@@ -38,13 +39,15 @@ export async function Topbar() {
             {initial}
           </div>
 
-          <a
-            href="/auth/logout"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#d8cdc1] bg-white px-4 py-3 text-sm font-semibold text-[#5f5146] transition hover:bg-[#f8f3ee]"
-          >
-            <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Αποσύνδεση</span>
-          </a>
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#d8cdc1] bg-white px-4 py-3 text-sm font-semibold text-[#5f5146] transition hover:bg-[#f8f3ee]"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Αποσύνδεση</span>
+            </button>
+          </form>
         </div>
       </div>
     </header>
