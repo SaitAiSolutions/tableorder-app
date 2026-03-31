@@ -71,7 +71,8 @@ function formatMoney(amount: number, currency = 'EUR') {
   }).format(amount)
 }
 
-function getSubscriptionPlanLabel(plan?: string | null) {
+function getSubscriptionPlanLabel(plan?: string | null, billingExempt?: boolean) {
+  if (billingExempt) return 'Lifetime / Free access'
   if (plan === 'starter') return 'Starter'
   if (plan === 'growth') return 'Growth'
   if (plan === 'pro') return 'Pro'
@@ -82,7 +83,9 @@ function getSubscriptionPlanLabel(plan?: string | null) {
 function getAccountStatusLabel(
   accountStatus?: string | null,
   subscriptionStatus?: string | null,
+  billingExempt?: boolean,
 ) {
+  if (billingExempt) return 'Χωρίς μηνιαία χρέωση'
   if (accountStatus === 'suspended') return 'Ανεσταλμένος λογαριασμός'
   if (subscriptionStatus === 'active') return 'Ενεργή συνδρομή'
   if (subscriptionStatus === 'trialing') return 'Δωρεάν δοκιμή'
@@ -94,7 +97,12 @@ function getAccountStatusLabel(
 function getSubscriptionDetails(
   accountStatus?: string | null,
   subscriptionStatus?: string | null,
+  billingExempt?: boolean,
 ) {
+  if (billingExempt) {
+    return 'Η επιχείρηση αυτή έχει ενεργοποιημένη πρόσβαση χωρίς μηνιαία χρέωση από super admin.'
+  }
+
   if (accountStatus === 'suspended') {
     return 'Η πρόσβαση έχει περιοριστεί μέχρι να εξοφληθούν οι εκκρεμότητες.'
   }
@@ -124,8 +132,10 @@ export default async function DashboardBillingPage() {
 
   if (!business) return null
 
+  const businessAny = business as any
   const safeTables = tables ?? []
   const tableCount = safeTables.length
+  const billingExempt = Boolean(businessAny.billing_exempt)
 
   const trial = getTrialStatus(
     business.trial_ends_at,
@@ -134,33 +144,40 @@ export default async function DashboardBillingPage() {
 
   const formattedTrialEndDate = formatTrialEndDate(business.trial_ends_at)
   const recommendedPlan = getPlanByTableCount(tableCount)
-  const currentPlanLabel = getSubscriptionPlanLabel(business.subscription_plan)
-  const hasStripeCustomer = !!business.stripe_customer_id
+  const currentPlanLabel = getSubscriptionPlanLabel(
+    business.subscription_plan,
+    billingExempt,
+  )
+  const hasStripeCustomer = !!businessAny.stripe_customer_id
   const hasActiveSubscription = business.subscription_status === 'active'
 
-  const outstandingBalance = Number(business.outstanding_balance ?? 0)
-  const hasOutstandingBalance = outstandingBalance > 0
+  const outstandingBalance = Number(businessAny.outstanding_balance ?? 0)
+  const hasOutstandingBalance = outstandingBalance > 0 && !billingExempt
 
-  const isSuspended = business.account_status === 'suspended'
+  const isSuspended = business.account_status === 'suspended' && !billingExempt
   const isPastDue =
-    business.subscription_status === 'past_due' ||
-    business.account_status === 'grace_period'
+    (business.subscription_status === 'past_due' ||
+      business.account_status === 'grace_period') &&
+    !billingExempt
 
-  const gracePeriodEndsAt = business.grace_period_ends_at
-    ? new Date(business.grace_period_ends_at).toLocaleDateString('el-GR')
+  const gracePeriodEndsAt = businessAny.grace_period_ends_at
+    ? new Date(businessAny.grace_period_ends_at).toLocaleDateString('el-GR')
     : null
 
   const accountStatusLabel = getAccountStatusLabel(
     business.account_status,
     business.subscription_status,
+    billingExempt,
   )
 
   const subscriptionDetails = getSubscriptionDetails(
     business.account_status,
     business.subscription_status,
+    billingExempt,
   )
 
   const recommendedDiffersFromCurrent =
+    !billingExempt &&
     business.subscription_plan &&
     business.subscription_plan !== 'trial' &&
     business.subscription_plan !== recommendedPlan.key
@@ -179,6 +196,30 @@ export default async function DashboardBillingPage() {
           πακέτο και την πολιτική χρέωσης της εφαρμογής.
         </p>
       </div>
+
+      {billingExempt ? (
+        <div className="rounded-[24px] border border-[#cfe7d5] bg-[#f4fbf6] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#dff2e5] text-[#26734d]">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium uppercase tracking-[0.14em] text-[#26734d]">
+                Free / Lifetime access
+              </p>
+              <h3 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900">
+                Η επιχείρηση λειτουργεί χωρίς μηνιαία χρέωση
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-[#5f6f63]">
+                Το billing έχει εξαιρεθεί από super admin. Δεν απαιτείται ενεργή
+                μηνιαία Stripe συνδρομή για να συνεχίσει να λειτουργεί η εφαρμογή.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {hasOutstandingBalance ? (
         <div className="rounded-[24px] border border-[#f3d2bf] bg-[#fff8f3] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
@@ -251,7 +292,9 @@ export default async function DashboardBillingPage() {
             {currentPlanLabel}
           </p>
           <p className="mt-2 text-xs leading-5 text-[#8b715d]">
-            Αυτό είναι το πακέτο που είναι αποθηκευμένο τώρα στον λογαριασμό.
+            {billingExempt
+              ? 'Η επιχείρηση αυτή έχει εξαιρεθεί από τη μηνιαία χρέωση.'
+              : 'Αυτό είναι το πακέτο που είναι αποθηκευμένο τώρα στον λογαριασμό.'}
           </p>
         </div>
 
@@ -261,7 +304,7 @@ export default async function DashboardBillingPage() {
           </div>
           <p className="text-sm text-[#7b6657]">Trial λήξη</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-            {formattedTrialEndDate ?? '—'}
+            {billingExempt ? 'Δεν απαιτείται' : formattedTrialEndDate ?? '—'}
           </p>
         </div>
 
@@ -271,11 +314,13 @@ export default async function DashboardBillingPage() {
           </div>
           <p className="text-sm text-[#7b6657]">Υπόλοιπο trial</p>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-            {trial.isActiveSubscription
-              ? 'Ενεργή συνδρομή'
-              : typeof trial.daysLeft === 'number'
-                ? `${trial.daysLeft} ημέρες`
-                : '—'}
+            {billingExempt
+              ? 'Admin override'
+              : trial.isActiveSubscription
+                ? 'Ενεργή συνδρομή'
+                : typeof trial.daysLeft === 'number'
+                  ? `${trial.daysLeft} ημέρες`
+                  : '—'}
           </p>
         </div>
 
@@ -320,6 +365,7 @@ export default async function DashboardBillingPage() {
             {plans.map((plan) => {
               const isRecommended = plan.name === recommendedPlan.name
               const isCurrent =
+                !billingExempt &&
                 business.subscription_plan &&
                 business.subscription_plan !== 'trial' &&
                 business.subscription_plan === plan.key
@@ -457,6 +503,17 @@ export default async function DashboardBillingPage() {
             </div>
           ) : null}
 
+          {billingExempt ? (
+            <div className="mt-4 rounded-2xl border border-[#cfe7d5] bg-white px-4 py-3">
+              <p className="text-sm font-medium text-[#26734d]">
+                Billing exempt / Lifetime access
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#5f6f63]">
+                Αυτή η επιχείρηση εξαιρείται από τις μηνιαίες χρεώσεις.
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white px-4 py-3">
             <p className="text-sm text-[#7b6657]">Τρέχον αποθηκευμένο πακέτο</p>
             <p className="mt-1 text-lg font-semibold text-gray-900">
@@ -465,7 +522,7 @@ export default async function DashboardBillingPage() {
           </div>
 
           <div className="mt-6 space-y-3">
-            {hasActiveSubscription ? (
+            {billingExempt ? null : hasActiveSubscription ? (
               <form action={createStripePortalSession}>
                 <button
                   type="submit"
@@ -485,7 +542,7 @@ export default async function DashboardBillingPage() {
               </form>
             )}
 
-            {hasStripeCustomer ? (
+            {!billingExempt && hasStripeCustomer ? (
               <form action={createStripePortalSession}>
                 <button
                   type="submit"
@@ -505,8 +562,9 @@ export default async function DashboardBillingPage() {
           </div>
 
           <p className="mt-4 text-xs leading-5 text-[#8b715d]">
-            Με το Stripe Customer Portal ο πελάτης μπορεί να ενημερώνει κάρτα,
-            να βλέπει invoices και να εξοφλεί τυχόν οφειλές.
+            {billingExempt
+              ? 'Η επιχείρηση αυτή λειτουργεί χωρίς ενεργή Stripe χρέωση λόγω admin εξαίρεσης.'
+              : 'Με το Stripe Customer Portal ο πελάτης μπορεί να ενημερώνει κάρτα, να βλέπει invoices και να εξοφλεί τυχόν οφειλές.'}
           </p>
         </div>
       </div>

@@ -25,6 +25,9 @@ type AdminBusinessListItem = {
   created_at: string
   owner_email: string | null
   tables_count: number
+  billing_exempt: boolean
+  billing_exempt_reason: string | null
+  billing_exempt_set_at: string | null
 }
 
 function getStripeClient() {
@@ -176,6 +179,9 @@ export async function createBusiness(
       trial_ends_at: trialEndsAt.toISOString(),
       subscription_status: 'trialing',
       subscription_plan: 'trial',
+      billing_exempt: false,
+      billing_exempt_reason: null,
+      billing_exempt_set_at: null,
     })
     .select('id, slug')
     .single()
@@ -291,6 +297,11 @@ export async function createStripeCheckoutSession(): Promise<void> {
   }
 
   const business = businessData as unknown as Business
+  const billingExempt = Boolean((business as any).billing_exempt)
+
+  if (billingExempt) {
+    redirect('/dashboard/billing')
+  }
 
   const { count: tableCount, error: tableCountError } = await supabase
     .from('tables')
@@ -308,7 +319,7 @@ export async function createStripeCheckoutSession(): Promise<void> {
   const profileResult = await supabase.auth.getUser()
   const email = profileResult.data.user?.email
 
-  let stripeCustomerId = business.stripe_customer_id
+  let stripeCustomerId = (business as any).stripe_customer_id
 
   if (!stripeCustomerId) {
     const customer = await stripe.customers.create({
@@ -405,15 +416,20 @@ export async function createStripePortalSession(): Promise<void> {
   }
 
   const business = businessData as unknown as Business
+  const billingExempt = Boolean((business as any).billing_exempt)
 
-  if (!business.stripe_customer_id) {
+  if (billingExempt) {
+    redirect('/dashboard/billing')
+  }
+
+  if (!(business as any).stripe_customer_id) {
     throw new Error(
       'Δεν υπάρχει Stripe customer για αυτή την επιχείρηση. Κάντε πρώτα checkout.',
     )
   }
 
   const session = await stripe.billingPortal.sessions.create({
-    customer: business.stripe_customer_id,
+    customer: (business as any).stripe_customer_id,
     return_url: `${getAppUrl()}/dashboard/billing`,
   })
 
@@ -444,6 +460,9 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
       subscription_plan,
       is_active,
       created_at,
+      billing_exempt,
+      billing_exempt_reason,
+      billing_exempt_set_at,
       business_users (
         user_id,
         role
@@ -467,6 +486,9 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
     subscription_plan: string | null
     is_active: boolean
     created_at: string
+    billing_exempt?: boolean | null
+    billing_exempt_reason?: string | null
+    billing_exempt_set_at?: string | null
     business_users?: Array<{ user_id: string; role?: string | null }>
     tables?: Array<{ id: string }>
   }>
@@ -479,20 +501,14 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
     )
     .filter(Boolean)
 
-  let ownerEmailMap = new Map<string, string>()
+  const uniqueOwnerIds = [...new Set(ownerIds)]
+  const ownerEmailMap = new Map<string, string>()
 
-  if (ownerIds.length > 0) {
-    const { data: profiles } = await admin
-      .from('profiles')
-      .select('id')
-      .in('id', ownerIds)
+  uniqueOwnerIds.forEach((id) => {
+    ownerEmailMap.set(id, '')
+  })
 
-    const uniqueOwnerIds = [...new Set(ownerIds)]
-
-    uniqueOwnerIds.forEach((id) => {
-      ownerEmailMap.set(id, null as unknown as string)
-    })
-
+  if (uniqueOwnerIds.length > 0) {
     const usersResponse = await admin.auth.admin.listUsers()
 
     if (usersResponse.data?.users) {
@@ -502,8 +518,6 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
         }
       }
     }
-
-    void profiles
   }
 
   const data: AdminBusinessListItem[] = rows.map((business) => {
@@ -521,10 +535,54 @@ export async function getAdminBusinesses(): Promise<ActionResult<AdminBusinessLi
       created_at: business.created_at,
       owner_email: ownerUserId ? ownerEmailMap.get(ownerUserId) ?? null : null,
       tables_count: business.tables?.length ?? 0,
+      billing_exempt: Boolean(business.billing_exempt),
+      billing_exempt_reason: business.billing_exempt_reason ?? null,
+      billing_exempt_set_at: business.billing_exempt_set_at ?? null,
     }
   })
 
   return { data, error: null }
+}
+
+export async function setBusinessBillingExempt(
+  businessId: string,
+  exempt: boolean,
+): Promise<ActionResult> {
+  const user = await getAuthenticatedUser()
+
+  if (!user || !isSuperAdminEmail(user.email)) {
+    return { data: null, error: 'Δεν έχετε πρόσβαση admin.' }
+  }
+
+  const admin = createAdminClient()
+
+  const updatePayload = exempt
+    ? {
+        billing_exempt: true,
+        billing_exempt_reason: 'Set by super admin',
+        billing_exempt_set_at: new Date().toISOString(),
+        account_status: 'active',
+      }
+    : {
+        billing_exempt: false,
+        billing_exempt_reason: null,
+        billing_exempt_set_at: null,
+      }
+
+  const { error } = await admin
+    .from('businesses')
+    .update(updatePayload as never)
+    .eq('id', businessId)
+
+  if (error) {
+    return { data: null, error: error.message }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/dashboard/billing')
+  revalidatePath('/dashboard', 'layout')
+
+  return { data: null, error: null }
 }
 
 export async function adminSelectBusiness(businessId: string): Promise<ActionResult> {

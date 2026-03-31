@@ -5,6 +5,7 @@ import {
   adminSelectBusiness,
   getAdminBusinesses,
   isCurrentUserSuperAdmin,
+  setBusinessBillingExempt,
 } from '@/lib/actions/business.actions'
 import { getTablesWithSessions } from '@/lib/actions/tables.actions'
 
@@ -19,7 +20,8 @@ function getStatusLabel(status?: string | null) {
   return '—'
 }
 
-function getPlanLabel(plan?: string | null) {
+function getPlanLabel(plan?: string | null, billingExempt?: boolean) {
+  if (billingExempt) return 'Free / Lifetime'
   if (plan === 'trial') return 'Trial'
   if (plan === 'starter') return 'Starter'
   if (plan === 'growth') return 'Growth'
@@ -72,36 +74,12 @@ export default async function AdminPage() {
             </button>
           </form>
 
-          <form
-            action={async () => {
-              'use server'
-
-              const preferredBusiness =
-                businesses?.find((business) => business.slug === 'sait-ai-solutions') ??
-                businesses?.find((business) => business.owner_email === 'info@sait.solutions') ??
-                businesses?.[0] ??
-                null
-
-              if (!preferredBusiness) {
-                redirect('/admin')
-              }
-
-              const result = await adminSelectBusiness(preferredBusiness.id)
-
-              if (result.error) {
-                redirect('/admin')
-              }
-
-              redirect('/dashboard')
-            }}
+          <a
+            href="/dashboard"
+            className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
           >
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]"
-            >
-              Άνοιγμα dashboard επιχείρησης
-            </button>
-          </form>
+            Πήγαινε στο dashboard
+          </a>
         </div>
 
         {error ? (
@@ -145,6 +123,12 @@ export default async function AdminPage() {
                               Demo
                             </span>
                           ) : null}
+
+                          {business.billing_exempt ? (
+                            <span className="rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]">
+                              Free / Lifetime
+                            </span>
+                          ) : null}
                         </div>
 
                         <p className="mt-2 text-sm text-[#7b6657]">
@@ -166,7 +150,9 @@ export default async function AdminPage() {
                           Status
                         </p>
                         <p className="mt-2 text-sm font-semibold text-gray-900">
-                          {getStatusLabel(business.account_status)}
+                          {business.billing_exempt
+                            ? 'Exempt'
+                            : getStatusLabel(business.account_status)}
                         </p>
                       </div>
 
@@ -175,7 +161,9 @@ export default async function AdminPage() {
                           Subscription
                         </p>
                         <p className="mt-2 text-sm font-semibold text-gray-900">
-                          {getStatusLabel(business.subscription_status)}
+                          {business.billing_exempt
+                            ? 'No monthly charge'
+                            : getStatusLabel(business.subscription_status)}
                         </p>
                       </div>
 
@@ -184,7 +172,10 @@ export default async function AdminPage() {
                           Plan
                         </p>
                         <p className="mt-2 text-sm font-semibold text-gray-900">
-                          {getPlanLabel(business.subscription_plan)}
+                          {getPlanLabel(
+                            business.subscription_plan,
+                            business.billing_exempt,
+                          )}
                         </p>
                       </div>
 
@@ -198,6 +189,12 @@ export default async function AdminPage() {
                         </p>
                       </div>
                     </div>
+
+                    {business.billing_exempt_reason ? (
+                      <div className="mt-4 rounded-2xl border border-[#d9eadf] bg-[#f7fcf8] px-4 py-3 text-sm text-[#4a6652]">
+                        Billing exempt reason: {business.billing_exempt_reason}
+                      </div>
+                    ) : null}
 
                     <div className="mt-5 flex flex-wrap gap-3">
                       <form
@@ -215,6 +212,29 @@ export default async function AdminPage() {
                         >
                           <LogIn className="h-4 w-4" />
                           Άνοιγμα dashboard
+                        </button>
+                      </form>
+
+                      <form
+                        action={async () => {
+                          'use server'
+                          await setBusinessBillingExempt(
+                            business.id,
+                            !business.billing_exempt,
+                          )
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          className={
+                            business.billing_exempt
+                              ? 'inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-5 py-3 text-sm font-semibold text-[#5f5146] hover:bg-[#f8f3ee]'
+                              : 'inline-flex items-center justify-center rounded-2xl border border-[#cfe7d5] bg-[#f4fbf6] px-5 py-3 text-sm font-semibold text-[#26734d] hover:bg-[#e9f7ee]'
+                          }
+                        >
+                          {business.billing_exempt
+                            ? 'Απενεργοποίηση free access'
+                            : 'Ενεργοποίηση free access'}
                         </button>
                       </form>
 
