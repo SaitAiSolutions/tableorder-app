@@ -16,11 +16,13 @@ export function SettingsForm({ business }: SettingsFormProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
   const [name, setName] = useState(business.name ?? '')
-  const [primaryColor, setPrimaryColor] = useState(business.primary_color ?? '#1a1a1a')
-  const [secondaryColor, setSecondaryColor] = useState(
-    business.secondary_color ?? '#f5f5f5',
+  const [phone, setPhone] = useState(((business as any).phone ?? '') as string)
+  const [openingHours, setOpeningHours] = useState(
+    (((business as any).opening_hours ?? '') as string),
   )
+
   const [selectedFileName, setSelectedFileName] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(business.logo_url ?? null)
 
@@ -44,11 +46,14 @@ export function SettingsForm({ business }: SettingsFormProps) {
         }
       }
 
-      const result = await updateBusiness(business.id, {
-        name: (formData.get('name') as string) ?? name,
-        primary_color: primaryColor,
-        secondary_color: secondaryColor,
-      })
+      const result = await updateBusiness(
+        business.id,
+        {
+          name: (formData.get('name') as string) ?? name,
+          phone: (formData.get('phone') as string)?.trim() || null,
+          opening_hours: (formData.get('opening_hours') as string)?.trim() || null,
+        } as any,
+      )
 
       if (result.error) {
         setError(result.error)
@@ -63,13 +68,13 @@ export function SettingsForm({ business }: SettingsFormProps) {
     <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
       <div className="mb-5">
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-          Brand settings
+          Business settings
         </p>
         <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
           Στοιχεία επιχείρησης
         </h3>
         <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Ενημερώστε τις βασικές ρυθμίσεις εμφάνισης και τα στοιχεία του brand σας.
+          Ενημερώστε τα βασικά στοιχεία της επιχείρησής σας.
         </p>
       </div>
 
@@ -150,6 +155,28 @@ export function SettingsForm({ business }: SettingsFormProps) {
           />
         </Field>
 
+        <Field label="Τηλέφωνο επιχείρησης" htmlFor="phone">
+          <Input
+            id="phone"
+            name="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="π.χ. 28310 12345"
+            className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+          />
+        </Field>
+
+        <Field label="Ωράριο λειτουργίας" htmlFor="opening_hours">
+          <Input
+            id="opening_hours"
+            name="opening_hours"
+            value={openingHours}
+            onChange={(e) => setOpeningHours(e.target.value)}
+            placeholder="π.χ. Δευ-Κυρ 08:00 - 23:00"
+            className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+          />
+        </Field>
+
         <Field label="Slug" htmlFor="slug">
           <Input
             id="slug"
@@ -158,44 +185,6 @@ export function SettingsForm({ business }: SettingsFormProps) {
             className="rounded-2xl border-[#e7ddd3] bg-[#f6f1ea] py-3 text-[#9a8b7e]"
           />
         </Field>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Κύριο χρώμα" htmlFor="primary_color">
-            <div className="flex items-center gap-3 rounded-2xl border border-[#e7ddd3] bg-[#fffdfa] px-4 py-4">
-              <input
-                id="primary_color"
-                type="color"
-                value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
-                className="h-10 w-10 cursor-pointer rounded border border-gray-200 p-0.5"
-              />
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-[#8b715d]">
-                  Primary
-                </p>
-                <span className="font-mono text-sm text-gray-700">{primaryColor}</span>
-              </div>
-            </div>
-          </Field>
-
-          <Field label="Δευτερεύον χρώμα" htmlFor="secondary_color">
-            <div className="flex items-center gap-3 rounded-2xl border border-[#e7ddd3] bg-[#fffdfa] px-4 py-4">
-              <input
-                id="secondary_color"
-                type="color"
-                value={secondaryColor}
-                onChange={(e) => setSecondaryColor(e.target.value)}
-                className="h-10 w-10 cursor-pointer rounded border border-gray-200 p-0.5"
-              />
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-[#8b715d]">
-                  Secondary
-                </p>
-                <span className="font-mono text-sm text-gray-700">{secondaryColor}</span>
-              </div>
-            </div>
-          </Field>
-        </div>
 
         <Button type="submit" loading={isPending} className="rounded-2xl">
           Αποθήκευση
