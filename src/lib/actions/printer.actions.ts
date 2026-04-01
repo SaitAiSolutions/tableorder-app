@@ -47,6 +47,40 @@ export type PrinterSettingsRow = {
   updated_at: string
 }
 
+type PrintableOrderRow = {
+  id: string
+  business_id: string
+  table_id: string
+  status: string
+  notes: string | null
+  total_amount: number
+  created_at: string
+  updated_at: string
+  table?: {
+    id?: string
+    table_number?: string
+    name?: string | null
+  } | null
+  order_items?: Array<{
+    id: string
+    product_name_snapshot_el: string
+    product_name_snapshot_en: string | null
+    unit_price: number
+    quantity: number
+    line_total: number
+    order_item_options?: Array<{
+      id: string
+      option_group_name_el: string
+      option_group_name_en: string | null
+      option_choice_name_el: string
+      option_choice_name_en: string | null
+      price_delta: number
+    }>
+  }>
+}
+
+const SERVICE_REQUEST_PREFIX = '__SERVICE_REQUEST__:'
+
 function normalizeCheckbox(value: FormDataEntryValue | null) {
   return value === 'on' || value === 'true' || value === '1'
 }
@@ -72,6 +106,15 @@ function normalizeInteger(
   if (typeof max === 'number' && result > max) result = max
 
   return result
+}
+
+function getServiceRequestType(notes?: string | null) {
+  if (!notes?.startsWith(SERVICE_REQUEST_PREFIX)) return null
+
+  const value = notes.replace(SERVICE_REQUEST_PREFIX, '').trim()
+
+  if (value === 'waiter' || value === 'bill') return value
+  return null
 }
 
 async function resolveBusinessId() {
@@ -323,4 +366,207 @@ export async function testPrinterSettings(): Promise<ActionResult> {
 
   revalidatePath('/dashboard/settings')
   return { data: null, error: null }
+}
+
+async function getPrintableOrder(orderId: string): Promise<ActionResult<PrintableOrderRow>> {
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from('orders')
+    .select(`
+      *,
+      table:tables (
+        id,
+        table_number,
+        name
+      ),
+      order_items (
+        id,
+        product_name_snapshot_el,
+        product_name_snapshot_en,
+        unit_price,
+        quantity,
+        line_total,
+        order_item_options (
+          id,
+          option_group_name_el,
+          option_group_name_en,
+          option_choice_name_el,
+          option_choice_name_en,
+          price_delta
+        )
+      )
+    `)
+    .eq('id', orderId)
+    .single()
+
+  if (error || !data) {
+    return {
+      data: null,
+      error: error?.message ?? 'Η παραγγελία δεν βρέθηκε για εκτύπωση.',
+    }
+  }
+
+  return {
+    data: data as unknown as PrintableOrderRow,
+    error: null,
+  }
+}
+
+export async function triggerAutomaticPrintForOrder(
+  orderId: string,
+): Promise<ActionResult<{ sent: boolean; skipped: boolean }>> {
+  const admin = createAdminClient()
+
+  const orderResult = await getPrintableOrder(orderId)
+
+  if (orderResult.error || !orderResult.data) {
+    return {
+      data: { sent: false, skipped: true },
+      error: orderResult.error ?? 'Η παραγγελία δεν βρέθηκε.',
+    }
+  }
+
+  const order = orderResult.data
+  const serviceRequestType = getServiceRequestType(order.notes)
+
+  const settingsResult = await getPrinterSettingsForBusiness(order.business_id)
+
+  if (settingsResult.error) {
+    return {
+      data: { sent: false, skipped: true },
+      error: settingsResult.error,
+    }
+  }
+
+  const settings = settingsResult.data
+
+  if (!settings || !settings.is_enabled) {
+    return { data: { sent: false, skipped: true }, error: null }
+  }
+
+  if (settings.printing_mode !== 'make_printnode') {
+    return { data: { sent: false, skipped: true }, error: null }
+  }
+
+  if (!settings.make_webhook_url) {
+    return {
+      data: { sent: false, skipped: true },
+      error: 'Δεν υπάρχει Make webhook URL στα printer settings.',
+    }
+  }
+
+  const shouldPrint =
+    serviceRequestType === 'waiter'
+      ? settings.auto_print_service_requests
+      : serviceRequestType === 'bill'
+        ? settings.auto_print_bills
+        : settings.auto_print_orders
+
+  if (!shouldPrint) {
+    return { data: { sent: false, skipped: true }, error: null }
+  }
+
+  const { data: business, error: businessError } = await admin
+    .from('businesses')
+    .select('id, name, slug, currency')
+    .eq('id', order.business_id)
+    .single()
+
+  if (businessError || !business) {
+    return {
+      data: { sent: false, skipped: true },
+      error: businessError?.message ?? 'Η επιχείρηση δεν βρέθηκε.',
+    }
+  }
+
+  const payload = {
+    source: 'tableorder',
+    event_type: serviceRequestType
+      ? `service_request_${serviceRequestType}`
+      : 'order_created',
+    sent_at: new Date().toISOString(),
+    business: {
+      id: business.id,
+      name: business.name,
+      slug: business.slug,
+      currency: business.currency,
+    },
+    printer_settings: {
+      id: settings.id,
+      name: settings.name,
+      mode: settings.printing_mode,
+      paper_width: settings.paper_width,
+      characters_per_line: settings.characters_per_line,
+      copies_count: settings.copies_count,
+      cut_paper: settings.cut_paper,
+      open_cash_drawer: settings.open_cash_drawer,
+      header_text: settings.header_text,
+      footer_text: settings.footer_text,
+      printnode_printer_id: settings.printnode_printer_id,
+    },
+    order: {
+      id: order.id,
+      status: order.status,
+      notes: order.notes,
+      total_amount: order.total_amount,
+      created_at: order.created_at,
+      updated_at: order.updated_at,
+      service_request_type: serviceRequestType,
+      table: {
+        id: order.table?.id ?? order.table_id,
+        table_number: order.table?.table_number ?? '',
+        name: order.table?.name ?? null,
+      },
+      items: (order.order_items ?? []).map((item) => ({
+        id: item.id,
+        name_el: item.product_name_snapshot_el,
+        name_en: item.product_name_snapshot_en,
+        unit_price: item.unit_price,
+        quantity: item.quantity,
+        line_total: item.line_total,
+        options: (item.order_item_options ?? []).map((option) => ({
+          id: option.id,
+          group_name_el: option.option_group_name_el,
+          group_name_en: option.option_group_name_en,
+          choice_name_el: option.option_choice_name_el,
+          choice_name_en: option.option_choice_name_en,
+          price_delta: option.price_delta,
+        })),
+      })),
+    },
+  }
+
+  try {
+    const response = await fetch(settings.make_webhook_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+
+      return {
+        data: { sent: false, skipped: false },
+        error: `Webhook error ${response.status}: ${responseText}`,
+      }
+    }
+
+    return {
+      data: { sent: true, skipped: false },
+      error: null,
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Άγνωστο σφάλμα webhook.'
+
+    return {
+      data: { sent: false, skipped: false },
+      error: message,
+    }
+  }
 }

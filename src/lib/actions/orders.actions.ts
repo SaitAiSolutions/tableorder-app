@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/utils/admin'
 import { isTrialExpired } from '@/lib/utils/trial'
+import { triggerAutomaticPrintForOrder } from '@/lib/actions/printer.actions'
 import type {
   OrderStatus,
   OrderWithItems,
@@ -257,6 +258,11 @@ async function createServiceRequest(
     }
   }
 
+  const printResult = await triggerAutomaticPrintForOrder(data.id)
+  if (printResult.error) {
+    console.error('[auto_print_service_request]', printResult.error)
+  }
+
   revalidatePath('/dashboard/orders')
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard', 'layout')
@@ -338,11 +344,20 @@ export async function placeOrder(
     }
   }
 
+  const resultData = data as unknown as PlaceOrderResult
+
+  if (resultData?.order_id) {
+    const printResult = await triggerAutomaticPrintForOrder(resultData.order_id)
+    if (printResult.error) {
+      console.error('[auto_print_order]', printResult.error)
+    }
+  }
+
   revalidatePath('/dashboard/orders')
   revalidatePath('/dashboard/tables')
   revalidatePath('/dashboard', 'layout')
 
-  return { data: data as unknown as PlaceOrderResult, error: null }
+  return { data: resultData, error: null }
 }
 
 export async function updateOrderStatus(
