@@ -338,7 +338,6 @@ export async function getMenuForCustomer(
     `)
     .eq('business_id', business.id)
     .eq('is_active', true)
-    .eq('products.is_available', true)
     .order('sort_order', { ascending: true })
     .order('sort_order', { referencedTable: 'products', ascending: true })
     .order('sort_order', {
