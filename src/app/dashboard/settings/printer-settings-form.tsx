@@ -102,7 +102,7 @@ export function PrinterSettingsForm({
         return
       }
 
-      setSuccess('Το test printer settings ολοκληρώθηκε.')
+      setSuccess('Στάλθηκε δοκιμαστική εκτύπωση.')
     })
   }
 
@@ -428,7 +428,7 @@ export function PrinterSettingsForm({
             onClick={handleTest}
             disabled={isPending}
           >
-            Test printer settings
+            Εκτύπωση δοκιμής
           </Button>
         </div>
       </form>

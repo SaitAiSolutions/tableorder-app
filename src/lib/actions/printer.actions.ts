@@ -319,8 +319,22 @@ export async function testPrinterSettings(): Promise<ActionResult> {
     return { data: null, error: 'Δεν υπάρχουν αποθηκευμένες ρυθμίσεις εκτυπωτή.' }
   }
 
+  if (!current.is_enabled) {
+    return {
+      data: null,
+      error: 'Ο εκτυπωτής είναι απενεργοποιημένος. Ενεργοποιήστε τον πρώτα.',
+    }
+  }
+
+  if (current.printing_mode === 'disabled') {
+    return {
+      data: null,
+      error: 'Το printing mode είναι Disabled.',
+    }
+  }
+
   let status: 'success' | 'failed' = 'success'
-  let message = 'Το test αποθηκεύτηκε επιτυχώς.'
+  let message = 'Το test εκτύπωσης ολοκληρώθηκε.'
 
   if (current.printing_mode === 'escpos_network') {
     if (!current.printer_ip) {
@@ -328,13 +342,13 @@ export async function testPrinterSettings(): Promise<ActionResult> {
       message = 'Λείπει η IP του network printer.'
     } else {
       message =
-        'Οι ρυθμίσεις network printer αποθηκεύτηκαν. Το πραγματικό socket print θα συνδεθεί στο επόμενο βήμα.'
+        'Οι ρυθμίσεις network printer αποθηκεύτηκαν. Το πραγματικό socket print θα συνδεθεί σε επόμενο βήμα.'
     }
   }
 
   if (current.printing_mode === 'browser') {
     message =
-      'Το browser print mode είναι αποθηκευμένο. Το πραγματικό print flow θα προστεθεί στο επόμενο βήμα.'
+      'Το browser print mode είναι αποθηκευμένο. Το πραγματικό browser print flow θα συνδεθεί σε επόμενο βήμα.'
   }
 
   if (current.printing_mode === 'make_printnode') {
@@ -342,13 +356,95 @@ export async function testPrinterSettings(): Promise<ActionResult> {
       status = 'failed'
       message = 'Λείπει το Make webhook URL.'
     } else {
-      message =
-        'Το Make + PrintNode mode είναι αποθηκευμένο. Στο επόμενο βήμα θα στείλουμε πραγματικό webhook.'
-    }
-  }
+      const { data: business, error: businessError } = await admin
+        .from('businesses')
+        .select('id, name, slug, currency')
+        .eq('id', businessId)
+        .single()
 
-  if (current.printing_mode === 'disabled') {
-    message = 'Ο εκτυπωτής είναι απενεργοποιημένος.'
+      if (businessError || !business) {
+        status = 'failed'
+        message = businessError?.message ?? 'Η επιχείρηση δεν βρέθηκε.'
+      } else {
+        const testPayload = {
+          source: 'tableorder',
+          event_type: 'test_print',
+          sent_at: new Date().toISOString(),
+          business: {
+            id: business.id,
+            name: business.name,
+            slug: business.slug,
+            currency: business.currency,
+          },
+          printer_settings: {
+            id: current.id,
+            name: current.name,
+            mode: current.printing_mode,
+            paper_width: current.paper_width,
+            characters_per_line: current.characters_per_line,
+            copies_count: current.copies_count,
+            cut_paper: current.cut_paper,
+            open_cash_drawer: current.open_cash_drawer,
+            header_text: current.header_text,
+            footer_text: current.footer_text,
+            printnode_printer_id: current.printnode_printer_id,
+          },
+          test_print: {
+            title: 'TEST PRINT',
+            created_at: new Date().toISOString(),
+            message: 'This is a printer test from TableOrder.',
+          },
+          table: {
+            id: 'test-table',
+            table_number: 'TEST',
+            name: 'Printer Settings',
+          },
+          order: {
+            id: 'test-print',
+            status: 'test',
+            notes: 'Printer test',
+            total_amount: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            service_request_type: null,
+          },
+          items: [
+            {
+              id: 'test-item-1',
+              name_el: 'Δοκιμαστική Εκτύπωση',
+              name_en: 'Test Print',
+              unit_price: 0,
+              quantity: 1,
+              line_total: 0,
+              options: [],
+            },
+          ],
+        }
+
+        try {
+          const response = await fetch(current.make_webhook_url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(testPayload),
+            cache: 'no-store',
+          })
+
+          if (!response.ok) {
+            status = 'failed'
+            const responseText = await response.text()
+            message = `Webhook error ${response.status}: ${responseText}`
+          } else {
+            message = 'Στάλθηκε δοκιμαστική εκτύπωση στο Make webhook.'
+          }
+        } catch (error) {
+          status = 'failed'
+          message =
+            error instanceof Error ? error.message : 'Άγνωστο σφάλμα webhook.'
+        }
+      }
+    }
   }
 
   const { error } = await admin
@@ -365,7 +461,7 @@ export async function testPrinterSettings(): Promise<ActionResult> {
   }
 
   revalidatePath('/dashboard/settings')
-  return { data: null, error: null }
+  return { data: null, error: status === 'failed' ? message : null }
 }
 
 async function getPrintableOrder(orderId: string): Promise<ActionResult<PrintableOrderRow>> {
@@ -513,28 +609,28 @@ export async function triggerAutomaticPrintForOrder(
       created_at: order.created_at,
       updated_at: order.updated_at,
       service_request_type: serviceRequestType,
-      table: {
-        id: order.table?.id ?? order.table_id,
-        table_number: order.table?.table_number ?? '',
-        name: order.table?.name ?? null,
-      },
-      items: (order.order_items ?? []).map((item) => ({
-        id: item.id,
-        name_el: item.product_name_snapshot_el,
-        name_en: item.product_name_snapshot_en,
-        unit_price: item.unit_price,
-        quantity: item.quantity,
-        line_total: item.line_total,
-        options: (item.order_item_options ?? []).map((option) => ({
-          id: option.id,
-          group_name_el: option.option_group_name_el,
-          group_name_en: option.option_group_name_en,
-          choice_name_el: option.option_choice_name_el,
-          choice_name_en: option.option_choice_name_en,
-          price_delta: option.price_delta,
-        })),
-      })),
     },
+    table: {
+      id: order.table?.id ?? order.table_id,
+      table_number: order.table?.table_number ?? '',
+      name: order.table?.name ?? null,
+    },
+    items: (order.order_items ?? []).map((item) => ({
+      id: item.id,
+      name_el: item.product_name_snapshot_el,
+      name_en: item.product_name_snapshot_en,
+      unit_price: item.unit_price,
+      quantity: item.quantity,
+      line_total: item.line_total,
+      options: (item.order_item_options ?? []).map((option) => ({
+        id: option.id,
+        group_name_el: option.option_group_name_el,
+        group_name_en: option.option_group_name_en,
+        choice_name_el: option.option_choice_name_el,
+        choice_name_en: option.option_choice_name_en,
+        price_delta: option.price_delta,
+      })),
+    })),
   }
 
   try {
