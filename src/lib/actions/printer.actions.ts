@@ -10,13 +10,19 @@ interface ActionResult<T = null> {
   error: string | null
 }
 
+export type PrintingMode =
+  | 'disabled'
+  | 'browser'
+  | 'escpos_network'
+  | 'make_printnode'
+
 export type PrinterSettingsRow = {
   id: string
   business_id: string
   name: string
   is_enabled: boolean
   is_default: boolean
-  printing_mode: 'disabled' | 'browser' | 'escpos_network'
+  printing_mode: PrintingMode
   connection_type: 'wifi' | 'ethernet' | 'browser'
   printer_brand: string | null
   printer_model: string | null
@@ -32,6 +38,8 @@ export type PrinterSettingsRow = {
   open_cash_drawer: boolean
   header_text: string | null
   footer_text: string | null
+  make_webhook_url: string | null
+  printnode_printer_id: string | null
   last_tested_at: string | null
   last_test_status: 'success' | 'failed' | null
   last_test_message: string | null
@@ -130,10 +138,7 @@ export async function upsertPrinterSettings(
 
   const businessId = result.businessId
 
-  const printingMode = String(formData.get('printing_mode') ?? 'disabled') as
-    | 'disabled'
-    | 'browser'
-    | 'escpos_network'
+  const printingMode = String(formData.get('printing_mode') ?? 'disabled') as PrintingMode
 
   const connectionType =
     printingMode === 'escpos_network'
@@ -176,6 +181,14 @@ export async function upsertPrinterSettings(
     open_cash_drawer: normalizeCheckbox(formData.get('open_cash_drawer')),
     header_text: normalizeNullableText(formData.get('header_text')),
     footer_text: normalizeNullableText(formData.get('footer_text')),
+    make_webhook_url:
+      printingMode === 'make_printnode'
+        ? normalizeNullableText(formData.get('make_webhook_url'))
+        : null,
+    printnode_printer_id:
+      printingMode === 'make_printnode'
+        ? normalizeNullableText(formData.get('printnode_printer_id'))
+        : null,
   }
 
   const { data: existing, error: existingError } = await admin
@@ -193,6 +206,13 @@ export async function upsertPrinterSettings(
     return {
       data: null,
       error: 'Για network printer πρέπει να συμπληρώσετε IP εκτυπωτή.',
+    }
+  }
+
+  if (payload.printing_mode === 'make_printnode' && !payload.make_webhook_url) {
+    return {
+      data: null,
+      error: 'Για Make + PrintNode πρέπει να συμπληρώσετε Make webhook URL.',
     }
   }
 
@@ -272,6 +292,16 @@ export async function testPrinterSettings(): Promise<ActionResult> {
   if (current.printing_mode === 'browser') {
     message =
       'Το browser print mode είναι αποθηκευμένο. Το πραγματικό print flow θα προστεθεί στο επόμενο βήμα.'
+  }
+
+  if (current.printing_mode === 'make_printnode') {
+    if (!current.make_webhook_url) {
+      status = 'failed'
+      message = 'Λείπει το Make webhook URL.'
+    } else {
+      message =
+        'Το Make + PrintNode mode είναι αποθηκευμένο. Στο επόμενο βήμα θα στείλουμε πραγματικό webhook.'
+    }
   }
 
   if (current.printing_mode === 'disabled') {

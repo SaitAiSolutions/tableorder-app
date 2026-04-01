@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import type { PrinterSettingsRow } from '@/lib/actions/printer.actions'
+import type { PrinterSettingsRow, PrintingMode } from '@/lib/actions/printer.actions'
 import {
   testPrinterSettings,
   upsertPrinterSettings,
@@ -23,9 +23,9 @@ export function PrinterSettingsForm({
 
   const [name, setName] = useState(printerSettings?.name ?? 'Main Printer')
   const [isEnabled, setIsEnabled] = useState(printerSettings?.is_enabled ?? false)
-  const [printingMode, setPrintingMode] = useState<
-    'disabled' | 'browser' | 'escpos_network'
-  >(printerSettings?.printing_mode ?? 'disabled')
+  const [printingMode, setPrintingMode] = useState<PrintingMode>(
+    printerSettings?.printing_mode ?? 'disabled',
+  )
   const [connectionType, setConnectionType] = useState<'wifi' | 'ethernet' | 'browser'>(
     printerSettings?.connection_type ?? 'wifi',
   )
@@ -59,9 +59,16 @@ export function PrinterSettingsForm({
   )
   const [headerText, setHeaderText] = useState(printerSettings?.header_text ?? '')
   const [footerText, setFooterText] = useState(printerSettings?.footer_text ?? '')
+  const [makeWebhookUrl, setMakeWebhookUrl] = useState(
+    printerSettings?.make_webhook_url ?? '',
+  )
+  const [printnodePrinterId, setPrintnodePrinterId] = useState(
+    printerSettings?.printnode_printer_id ?? '',
+  )
 
   const isNetworkMode = printingMode === 'escpos_network'
   const isBrowserMode = printingMode === 'browser'
+  const isMakePrintnodeMode = printingMode === 'make_printnode'
 
   const recommendedChars = useMemo(() => {
     return paperWidth === '58mm' ? 32 : 48
@@ -152,15 +159,12 @@ export function PrinterSettingsForm({
               id="printing_mode"
               name="printing_mode"
               value={printingMode}
-              onChange={(e) =>
-                setPrintingMode(
-                  e.target.value as 'disabled' | 'browser' | 'escpos_network',
-                )
-              }
+              onChange={(e) => setPrintingMode(e.target.value as PrintingMode)}
               className="h-12 w-full rounded-2xl border border-[#e7ddd3] bg-[#fffdfa] px-4 text-sm text-gray-900 focus:border-[#c9b29d] focus:outline-none focus:ring-2 focus:ring-[#efe4d8]"
             >
               <option value="disabled">Disabled</option>
               <option value="browser">Browser print</option>
+              <option value="make_printnode">Make + PrintNode</option>
               <option value="escpos_network">ESC/POS network printer</option>
             </select>
           </Field>
@@ -177,6 +181,40 @@ export function PrinterSettingsForm({
             Ενεργοποίηση εκτυπωτή για αυτή την επιχείρηση
           </label>
         </div>
+
+        {isMakePrintnodeMode ? (
+          <>
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field label="Make webhook URL" htmlFor="make_webhook_url" required>
+                <Input
+                  id="make_webhook_url"
+                  name="make_webhook_url"
+                  value={makeWebhookUrl}
+                  onChange={(e) => setMakeWebhookUrl(e.target.value)}
+                  placeholder="https://hook.eu2.make.com/..."
+                  className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+                  required
+                />
+              </Field>
+
+              <Field label="PrintNode printer ID" htmlFor="printnode_printer_id">
+                <Input
+                  id="printnode_printer_id"
+                  name="printnode_printer_id"
+                  value={printnodePrinterId}
+                  onChange={(e) => setPrintnodePrinterId(e.target.value)}
+                  placeholder="π.χ. 70123456"
+                  className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+                />
+              </Field>
+            </div>
+
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              Σε αυτό το mode η εφαρμογή θα στέλνει webhook στο Make και από εκεί το
+              Make θα δίνει την εντολή εκτύπωσης στο PrintNode.
+            </div>
+          </>
+        ) : null}
 
         {isNetworkMode ? (
           <>
