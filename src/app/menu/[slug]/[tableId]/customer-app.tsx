@@ -249,6 +249,10 @@ export function CustomerApp({ data }: CustomerAppProps) {
     )
   }
 
+  function removeItem(key: string) {
+    setCart((prev) => prev.filter((item) => item.key !== key))
+  }
+
   async function handleSubmitOrder() {
     if (cart.length === 0) return
 
@@ -502,6 +506,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
         onClose={() => setCartOpen(false)}
         onIncrease={increaseItem}
         onDecrease={decreaseItem}
+        onRemove={removeItem}
         onSubmit={handleSubmitOrder}
         submitting={submitting}
         language={language}
@@ -510,6 +515,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
       <OrderConfirmation
         open={confirmationOpen}
         onClose={() => setConfirmationOpen(false)}
+        language={language}
       />
 
       {optionProduct ? (
@@ -551,19 +557,31 @@ export function CustomerApp({ data }: CustomerAppProps) {
                   key={group.id}
                   className="rounded-2xl border border-[#ebe5dd] bg-[#faf7f2] p-4"
                 >
-                  <div className="mb-3">
-                    <h4 className="text-sm font-semibold text-gray-900">
-                      {getLocalizedText(language, group.name_el, group.name_en, 'Option')}
-                    </h4>
-                    <p className="mt-1 text-xs text-[#7b6657]">
-                      {group.is_required
-                        ? language === 'en'
-                          ? 'Required option'
-                          : 'Υποχρεωτική επιλογή'
-                        : language === 'en'
-                          ? 'Optional option'
-                          : 'Προαιρετική επιλογή'}
-                    </p>
+                  <div className="mb-3 flex items-start justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900">
+                        {getLocalizedText(language, group.name_el, group.name_en, 'Option')}
+                      </h4>
+                      <p className="mt-1 text-xs text-[#7b6657]">
+                        {group.is_required
+                          ? language === 'en'
+                            ? 'Required option'
+                            : 'Υποχρεωτική επιλογή'
+                          : language === 'en'
+                            ? 'Optional option'
+                            : 'Προαιρετική επιλογή'}
+                      </p>
+                    </div>
+
+                    {group.is_required ? (
+                      <span className="rounded-full bg-[#1f2937] px-2.5 py-1 text-[11px] font-medium text-white">
+                        {language === 'en' ? 'Required' : 'Υποχρεωτικό'}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#7b6657]">
+                        {language === 'en' ? 'Optional' : 'Προαιρετικό'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-2">

@@ -94,7 +94,7 @@ export function ProductGrid({
                   </h3>
 
                   {productDescription ? (
-                    <p className="mt-2 text-sm leading-6 text-gray-500">
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-500">
                       {productDescription}
                     </p>
                   ) : (
@@ -116,9 +116,11 @@ export function ProductGrid({
 
                   {hasOptions ? (
                     <p className="mt-1 text-xs text-[#8a6d58]">
-                      {language === 'en' ? 'Available options' : 'Διαθέσιμες επιλογές'}
+                      {language === 'en' ? 'Customizable' : 'Με επιλογές'}
                     </p>
-                  ) : null}
+                  ) : (
+                    <p className="mt-1 text-xs text-transparent">.</p>
+                  )}
                 </div>
 
                 <Button
@@ -128,7 +130,7 @@ export function ProductGrid({
                 >
                   {hasOptions
                     ? language === 'en'
-                      ? 'Options'
+                      ? 'Choose'
                       : 'Επιλογές'
                     : language === 'en'
                       ? 'Add'

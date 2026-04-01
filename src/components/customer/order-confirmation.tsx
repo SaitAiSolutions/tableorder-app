@@ -2,12 +2,19 @@
 
 import { CheckCircle2, UtensilsCrossed } from 'lucide-react'
 
+type MenuLanguage = 'en' | 'el'
+
 interface OrderConfirmationProps {
   open: boolean
   onClose: () => void
+  language: MenuLanguage
 }
 
-export function OrderConfirmation({ open, onClose }: OrderConfirmationProps) {
+export function OrderConfirmation({
+  open,
+  onClose,
+  language,
+}: OrderConfirmationProps) {
   if (!open) return null
 
   return (
@@ -19,10 +26,12 @@ export function OrderConfirmation({ open, onClose }: OrderConfirmationProps) {
           </div>
 
           <h3 className="mt-4 text-center text-2xl font-semibold tracking-tight">
-            Η παραγγελία στάλθηκε
+            {language === 'en' ? 'Order sent' : 'Η παραγγελία στάλθηκε'}
           </h3>
           <p className="mt-2 text-center text-sm leading-6 text-white/80">
-            Ευχαριστούμε. Η παραγγελία σας καταχωρήθηκε επιτυχώς και θα τη δει άμεσα το προσωπικό.
+            {language === 'en'
+              ? 'Thank you. Your order has been sent successfully and the staff will see it immediately.'
+              : 'Ευχαριστούμε. Η παραγγελία σας καταχωρήθηκε επιτυχώς και θα τη δει άμεσα το προσωπικό.'}
           </p>
         </div>
 
@@ -35,11 +44,12 @@ export function OrderConfirmation({ open, onClose }: OrderConfirmationProps) {
 
               <div>
                 <p className="text-sm font-semibold text-gray-900">
-                  Τι γίνεται τώρα;
+                  {language === 'en' ? 'What happens next?' : 'Τι γίνεται τώρα;'}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-[#7b6657]">
-                  Μπορείτε να συνεχίσετε να βλέπετε το menu και να στείλετε νέα παραγγελία
-                  αργότερα, αν χρειαστεί.
+                  {language === 'en'
+                    ? 'You can continue browsing the menu and send another order later if needed.'
+                    : 'Μπορείτε να συνεχίσετε να βλέπετε το menu και να στείλετε νέα παραγγελία αργότερα, αν χρειαστεί.'}
                 </p>
               </div>
             </div>
@@ -50,7 +60,7 @@ export function OrderConfirmation({ open, onClose }: OrderConfirmationProps) {
             onClick={onClose}
             className="w-full rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(31,41,55,0.18)] transition hover:bg-[#111827]"
           >
-            Συνέχεια στο menu
+            {language === 'en' ? 'Continue browsing' : 'Συνέχεια στο menu'}
           </button>
         </div>
       </div>

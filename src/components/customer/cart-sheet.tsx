@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { ShoppingBag, StickyNote, X } from 'lucide-react'
+import { ShoppingBag, StickyNote, Trash2, X } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/format-currency'
 import type { CartItem } from '@/types/database.types'
 
@@ -16,6 +16,7 @@ interface CartSheetProps {
   onClose: () => void
   onIncrease: (key: string) => void
   onDecrease: (key: string) => void
+  onRemove: (key: string) => void
   onSubmit: () => void | Promise<void>
   submitting?: boolean
   language: MenuLanguage
@@ -30,6 +31,7 @@ export function CartSheet({
   onClose,
   onIncrease,
   onDecrease,
+  onRemove,
   onSubmit,
   submitting = false,
   language,
@@ -146,9 +148,20 @@ export function CartSheet({
                           ) : null}
                         </div>
 
-                        <p className="whitespace-nowrap text-base font-semibold text-gray-900">
-                          {formatCurrency(item.line_total, currency)}
-                        </p>
+                        <div className="flex flex-col items-end gap-2">
+                          <p className="whitespace-nowrap text-base font-semibold text-gray-900">
+                            {formatCurrency(item.line_total, currency)}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => onRemove(item.key)}
+                            className="inline-flex items-center gap-1 rounded-xl border border-[#eadfd3] bg-white px-2.5 py-1.5 text-xs font-medium text-[#7b6657] hover:bg-[#f8f3ee]"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {language === 'en' ? 'Remove' : 'Αφαίρεση'}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="mt-4 flex items-center justify-between gap-4">
