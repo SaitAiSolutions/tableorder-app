@@ -586,7 +586,7 @@ export function MenuManager({
     products.find((product) => product.id === editingProductId) ?? null
 
   return (
-    <>
+    <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="space-y-6">
           <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
@@ -1533,7 +1533,7 @@ export function MenuManager({
             </div>
           </div>
         </div>
-      </div>
-    </>
+      ) : null}
+    </div>
   )
 }
