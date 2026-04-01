@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react'
 import {
   BellRing,
+  ChevronDown,
+  ChevronUp,
   Clock3,
   Phone,
   ReceiptText,
@@ -71,6 +73,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
     useState<ServiceRequestType | null>(null)
   const [orderNotes, setOrderNotes] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [businessInfoOpen, setBusinessInfoOpen] = useState(false)
 
   const [optionProduct, setOptionProduct] = useState<
     CategoryWithProducts['products'][number] | null
@@ -418,10 +421,27 @@ export function CustomerApp({ data }: CustomerAppProps) {
                     : 'Καλώς ήρθατε. Δείτε το μενού και στείλτε την παραγγελία σας εύκολα από το κινητό.'}
                 </p>
 
-                <div className="mt-5 inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                  {language === 'en'
-                    ? `Table ${data.table.table_number}`
-                    : `Τραπέζι ${data.table.table_number}`}
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                    {language === 'en'
+                      ? `Table ${data.table.table_number}`
+                      : `Τραπέζι ${data.table.table_number}`}
+                  </div>
+
+                  {(businessPhone || openingHoursLines.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setBusinessInfoOpen((prev) => !prev)}
+                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/15"
+                    >
+                      {language === 'en' ? 'Store info' : 'Πληροφορίες καταστήματος'}
+                      {businessInfoOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -451,7 +471,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
               </div>
             </div>
 
-            {businessPhone || openingHoursLines.length > 0 ? (
+            {businessInfoOpen && (businessPhone || openingHoursLines.length > 0) ? (
               <div className="mt-6 grid gap-3 md:grid-cols-2">
                 {businessPhone ? (
                   <div className="rounded-[22px] border border-white/10 bg-white/10 px-4 py-4">
