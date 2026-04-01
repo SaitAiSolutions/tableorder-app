@@ -161,19 +161,27 @@ export function SettingsForm({ business }: SettingsFormProps) {
             name="phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="π.χ. 28310 12345"
+            placeholder="π.χ. 697 451 9816"
             className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
           />
         </Field>
 
         <Field label="Ωράριο λειτουργίας" htmlFor="opening_hours">
-          <Input
+          <textarea
             id="opening_hours"
             name="opening_hours"
             value={openingHours}
             onChange={(e) => setOpeningHours(e.target.value)}
-            placeholder="π.χ. Δευ-Κυρ 08:00 - 23:00"
-            className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+            placeholder={`π.χ.
+Δευτέρα: 09:00 - 17:00
+Τρίτη: 09:00 - 17:00
+Τετάρτη: 09:00 - 17:00
+Πέμπτη: 09:00 - 17:00
+Παρασκευή: 09:00 - 17:00
+Σάββατο: 10:00 - 15:00
+Κυριακή: Κλειστά`}
+            rows={8}
+            className="w-full rounded-2xl border border-[#e7ddd3] bg-[#fffdfa] px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#c9b29d] focus:ring-2 focus:ring-[#efe4d8]"
           />
         </Field>
 
