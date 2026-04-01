@@ -17,6 +17,7 @@ interface CartSheetProps {
   onIncrease: (key: string) => void
   onDecrease: (key: string) => void
   onRemove: (key: string) => void
+  onClearCart: () => void
   onSubmit: () => void | Promise<void>
   submitting?: boolean
   language: MenuLanguage
@@ -32,6 +33,7 @@ export function CartSheet({
   onIncrease,
   onDecrease,
   onRemove,
+  onClearCart,
   onSubmit,
   submitting = false,
   language,
@@ -60,6 +62,17 @@ export function CartSheet({
     if (submitting) return
     if (cart.length === 0) return
     await onSubmit()
+  }
+
+  function handleClearCart() {
+    const confirmed = window.confirm(
+      language === 'en'
+        ? 'Are you sure you want to clear the cart?'
+        : 'Θέλετε σίγουρα να αδειάσετε το καλάθι;',
+    )
+
+    if (!confirmed) return
+    onClearCart()
   }
 
   return (
@@ -99,22 +112,32 @@ export function CartSheet({
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <div className="space-y-4 pb-2">
                 <div className="rounded-[22px] border border-[#eee5dc] bg-white px-4 py-3 text-sm text-[#6b5a4f]">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
-                      <ShoppingBag className="h-5 w-5" />
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f6efe8] text-[#7c5c46]">
+                        <ShoppingBag className="h-5 w-5" />
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {language === 'en'
+                            ? `${totalItems} ${totalItems === 1 ? 'item' : 'items'} in cart`
+                            : `${totalItems} ${totalItems === 1 ? 'προϊόν' : 'προϊόντα'} στο καλάθι`}
+                        </p>
+                        <p className="text-[#7b6657]">
+                          {language === 'en' ? 'Total' : 'Σύνολο'}:{' '}
+                          {formatCurrency(totalAmount, currency)}
+                        </p>
+                      </div>
                     </div>
 
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {language === 'en'
-                          ? `${totalItems} ${totalItems === 1 ? 'item' : 'items'} in cart`
-                          : `${totalItems} ${totalItems === 1 ? 'προϊόν' : 'προϊόντα'} στο καλάθι`}
-                      </p>
-                      <p className="text-[#7b6657]">
-                        {language === 'en' ? 'Total' : 'Σύνολο'}:{' '}
-                        {formatCurrency(totalAmount, currency)}
-                      </p>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearCart}
+                      className="rounded-xl border border-[#eadfd3] bg-white px-3 py-2 text-xs font-medium text-[#7b6657] hover:bg-[#f8f3ee]"
+                    >
+                      {language === 'en' ? 'Clear cart' : 'Άδειασμα'}
+                    </button>
                   </div>
                 </div>
 

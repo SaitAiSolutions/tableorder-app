@@ -253,6 +253,11 @@ export function CustomerApp({ data }: CustomerAppProps) {
     setCart((prev) => prev.filter((item) => item.key !== key))
   }
 
+  function clearCart() {
+    setCart([])
+    setOrderNotes('')
+  }
+
   async function handleSubmitOrder() {
     if (cart.length === 0) return
 
@@ -507,6 +512,7 @@ export function CustomerApp({ data }: CustomerAppProps) {
         onIncrease={increaseItem}
         onDecrease={decreaseItem}
         onRemove={removeItem}
+        onClearCart={clearCart}
         onSubmit={handleSubmitOrder}
         submitting={submitting}
         language={language}

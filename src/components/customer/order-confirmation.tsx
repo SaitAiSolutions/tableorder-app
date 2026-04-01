@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, UtensilsCrossed } from 'lucide-react'
+import { CheckCircle2, ShoppingBag, UtensilsCrossed } from 'lucide-react'
 
 type MenuLanguage = 'en' | 'el'
 
@@ -55,13 +55,24 @@ export function OrderConfirmation({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(31,41,55,0.18)] transition hover:bg-[#111827]"
-          >
-            {language === 'en' ? 'Continue browsing' : 'Συνέχεια στο menu'}
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1f2937] px-4 py-3 text-sm font-medium text-white shadow-[0_10px_24px_rgba(31,41,55,0.18)] transition hover:bg-[#111827]"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              {language === 'en' ? 'Continue browsing' : 'Συνέχεια στο menu'}
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-[#d8cdc1] bg-white px-4 py-3 text-sm font-medium text-[#5f5146] transition hover:bg-[#f8f3ee]"
+            >
+              {language === 'en' ? 'Close' : 'Κλείσιμο'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
