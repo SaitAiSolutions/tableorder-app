@@ -57,6 +57,7 @@ export function TableCard({
   const [success, setSuccess] = useState<string | null>(null)
 
   const [isEditing, setIsEditing] = useState(false)
+  const [showQr, setShowQr] = useState(false)
   const [tableNumber, setTableNumber] = useState(table.table_number ?? '')
   const [tableName, setTableName] = useState(table.name ?? '')
 
@@ -86,44 +87,6 @@ export function TableCard({
     () => getTableDisplayTitle(table.table_number, table.name),
     [table.table_number, table.name],
   )
-
-  const latestActivityAt = useMemo(() => {
-    const sessionStartedAt = table.active_session?.started_at
-    const orderDates =
-      table.active_session?.orders?.map((order) => order.created_at) ?? []
-
-    const values = [...orderDates]
-    if (sessionStartedAt) values.push(sessionStartedAt)
-
-    if (values.length === 0) return null
-
-    const latest = values
-      .map((value) => new Date(value).getTime())
-      .filter((value) => !Number.isNaN(value))
-      .sort((a, b) => b - a)[0]
-
-    if (!latest) return null
-
-    return new Date(latest).toLocaleString('el-GR')
-  }, [table.active_session])
-
-  const statusSummary = useMemo(() => {
-    if (!occupied) return 'Το τραπέζι είναι διαθέσιμο για νέα παραγγελία.'
-
-    if (activeOrders > 0 && activeServiceRequests > 0) {
-      return `${activeOrders} ενεργές παραγγελίες · ${activeServiceRequests} service requests`
-    }
-
-    if (activeOrders > 0) {
-      return `${activeOrders} ενεργές παραγγελίες`
-    }
-
-    if (activeServiceRequests > 0) {
-      return `${activeServiceRequests} service requests`
-    }
-
-    return 'Υπάρχει ενεργή συνεδρία χωρίς ανοιχτές παραγγελίες.'
-  }, [occupied, activeOrders, activeServiceRequests])
 
   const customerMenuUrl = useMemo(() => {
     const normalizedAppUrl = appUrl.replace(/\/$/, '')
@@ -209,7 +172,7 @@ export function TableCard({
     try {
       await navigator.clipboard.writeText(customerMenuUrl)
       setError(null)
-      setSuccess('Το link του QR αντιγράφηκε.')
+      setSuccess('Το link αντιγράφηκε.')
     } catch {
       setError('Δεν έγινε αντιγραφή του link.')
     }
@@ -248,220 +211,238 @@ export function TableCard({
   }
 
   return (
-    <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {isEditing ? (
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-[#8b715d]">
-                  Αριθμός τραπεζιού
-                </label>
-                <Input
-                  value={tableNumber}
-                  onChange={(e) => setTableNumber(e.target.value)}
-                  className="rounded-xl border-[#e7ddd3] bg-white py-2"
-                />
-              </div>
+    <>
+      <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-[#8b715d]">
+                    Αριθμός τραπεζιού
+                  </label>
+                  <Input
+                    value={tableNumber}
+                    onChange={(e) => setTableNumber(e.target.value)}
+                    className="rounded-xl border-[#e7ddd3] bg-white py-2"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-[#8b715d]">
-                  Όνομα / περιοχή / σημείωση
-                </label>
-                <Input
-                  value={tableName}
-                  onChange={(e) => setTableName(e.target.value)}
-                  className="rounded-xl border-[#e7ddd3] bg-white py-2"
-                />
-              </div>
-            </div>
-          ) : (
-            <>
-              <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-                {displayTitle}
-              </h3>
-              <p className="mt-1 text-sm text-[#7b6657]">
-                {table.name?.trim() ? table.name : 'Χωρίς σημείωση'}
-              </p>
-            </>
-          )}
-        </div>
-
-        <Badge
-          className={
-            occupied
-              ? 'bg-[#fce7d6] text-[#9a5b24]'
-              : 'bg-[#e7f6ea] text-[#26734d]'
-          }
-        >
-          {occupied ? 'Κατειλημμένο' : 'Ελεύθερο'}
-        </Badge>
-      </div>
-
-      <ErrorMessage message={error} />
-
-      {success ? (
-        <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {success}
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-[#8b715d]">
-            Παραγγελίες
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900">
-            {activeOrders}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-[#8b715d]">
-            Service
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900">
-            {activeServiceRequests}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-[#8b715d]">
-            Σύνολο
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900">
-            {formatCurrency(total, currency)}
-          </p>
-        </div>
-      </div>
-
-      {!isEditing ? (
-        <>
-          <div className="mt-4 rounded-[20px] border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-3">
-            <p className="text-sm font-medium text-gray-900">Κατάσταση τραπεζιού</p>
-            <p className="mt-1 text-sm text-[#7b6657]">{statusSummary}</p>
-            {latestActivityAt ? (
-              <p className="mt-2 text-xs text-[#8b715d]">
-                Τελευταία δραστηριότητα: {latestActivityAt}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="mt-4 rounded-[20px] border border-[#e8ddd2] bg-[#fcfaf7] p-4">
-            <div className="flex items-start gap-4">
-              <div className="shrink-0 rounded-2xl bg-white p-3 shadow-sm">
-                <QRCodeSVG
-                  id={`qr-${table.id}`}
-                  value={customerMenuUrl}
-                  size={110}
-                  includeMargin
-                />
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  QR για customer menu
-                </p>
-                <p className="mt-1 break-all text-xs leading-5 text-[#7b6657]">
-                  {customerMenuUrl}
-                </p>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Link
-                    href={customerMenuUrl}
-                    target="_blank"
-                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
-                  >
-                    Άνοιγμα menu
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
-                  >
-                    Αντιγραφή link
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDownloadQr}
-                    className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
-                  >
-                    Λήψη QR
-                  </button>
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-[0.12em] text-[#8b715d]">
+                    Όνομα / σημείωση
+                  </label>
+                  <Input
+                    value={tableName}
+                    onChange={(e) => setTableName(e.target.value)}
+                    className="rounded-xl border-[#e7ddd3] bg-white py-2"
+                  />
                 </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <h3 className="truncate text-lg font-semibold tracking-tight text-gray-900">
+                  {displayTitle}
+                </h3>
+                <p className="mt-1 text-sm text-[#7b6657]">
+                  {occupied
+                    ? 'Ενεργή συνεδρία'
+                    : 'Διαθέσιμο για νέα παραγγελία'}
+                </p>
+              </>
+            )}
           </div>
-        </>
-      ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {isEditing ? (
-          <>
-            <Button
-              type="button"
-              loading={isPending}
-              className="rounded-2xl"
-              onClick={handleSave}
-            >
-              Αποθήκευση
-            </Button>
+          <Badge
+            className={
+              occupied
+                ? 'bg-[#fce7d6] text-[#9a5b24]'
+                : 'bg-[#e7f6ea] text-[#26734d]'
+            }
+          >
+            {occupied ? 'Κατειλημμένο' : 'Ελεύθερο'}
+          </Badge>
+        </div>
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-2xl"
-              onClick={handleCancelEdit}
-              disabled={isPending}
-            >
-              Άκυρο
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-2xl"
-              onClick={() => {
-                setIsEditing(true)
-                setError(null)
-                setSuccess(null)
-              }}
-              disabled={isPending}
-            >
-              Επεξεργασία
-            </Button>
+        <ErrorMessage message={error} />
 
-            {occupied ? (
+        {success ? (
+          <div className="mb-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {success}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-[#faf7f2] px-3 py-3">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+              Παραγγελίες
+            </p>
+            <p className="mt-1 text-xl font-semibold text-gray-900">
+              {activeOrders}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-[#faf7f2] px-3 py-3">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+              Service
+            </p>
+            <p className="mt-1 text-xl font-semibold text-gray-900">
+              {activeServiceRequests}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-[#faf7f2] px-3 py-3">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+              Σύνολο
+            </p>
+            <p className="mt-1 text-xl font-semibold text-gray-900">
+              {formatCurrency(total, currency)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {isEditing ? (
+            <>
               <Button
                 type="button"
                 loading={isPending}
                 className="rounded-2xl"
-                onClick={handleClear}
+                onClick={handleSave}
               >
-                Εκκαθάριση τραπεζιού
+                Αποθήκευση
               </Button>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-[#d8cdc1] bg-[#fffdfa] px-4 py-3 text-sm text-[#7b6657]">
-                Το τραπέζι είναι διαθέσιμο για νέα παραγγελία.
-              </div>
-            )}
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-700"
-              onClick={handleDelete}
-              disabled={isPending || occupied}
-            >
-              Διαγραφή
-            </Button>
-          </>
-        )}
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-2xl"
+                onClick={handleCancelEdit}
+                disabled={isPending}
+              >
+                Άκυρο
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-2xl"
+                onClick={() => {
+                  setIsEditing(true)
+                  setError(null)
+                  setSuccess(null)
+                }}
+                disabled={isPending}
+              >
+                Επεξεργασία
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-2xl"
+                onClick={() => setShowQr(true)}
+              >
+                QR / Link
+              </Button>
+
+              {occupied ? (
+                <Button
+                  type="button"
+                  loading={isPending}
+                  className="rounded-2xl"
+                  onClick={handleClear}
+                >
+                  Εκκαθάριση
+                </Button>
+              ) : null}
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-2xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={handleDelete}
+                disabled={isPending || occupied}
+              >
+                Διαγραφή
+              </Button>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+      {showQr ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-md rounded-[28px] border border-[#ebe5dd] bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                  QR / Customer menu
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-tight text-gray-900">
+                  {displayTitle}
+                </h3>
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-2xl"
+                onClick={() => setShowQr(false)}
+              >
+                Κλείσιμο
+              </Button>
+            </div>
+
+            <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] p-4">
+              <div className="flex justify-center">
+                <div className="rounded-2xl bg-white p-4 shadow-sm">
+                  <QRCodeSVG
+                    id={`qr-${table.id}`}
+                    value={customerMenuUrl}
+                    size={180}
+                    includeMargin
+                  />
+                </div>
+              </div>
+
+              <p className="mt-4 break-all text-center text-xs leading-5 text-[#7b6657]">
+                {customerMenuUrl}
+              </p>
+
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Link
+                  href={customerMenuUrl}
+                  target="_blank"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[#d8cdc1] bg-white px-4 py-2 text-sm font-medium text-[#5f5146] hover:bg-[#f8f3ee]"
+                >
+                  Άνοιγμα menu
+                </Link>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-2xl"
+                  onClick={handleCopyLink}
+                >
+                  Αντιγραφή link
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-2xl"
+                  onClick={handleDownloadQr}
+                >
+                  Λήψη QR
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }

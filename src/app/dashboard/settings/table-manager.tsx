@@ -109,104 +109,103 @@ export function TableManager({ tables, businessSlug }: TableManagerProps) {
   }
 
   return (
-    <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-      <div className="mb-5">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
-          Table setup
-        </p>
-        <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-          Διαχείριση τραπεζιών
-        </h3>
-        <p className="mt-2 text-sm leading-6 text-[#7b6657]">
-          Προσθέστε τραπέζια για το QR ordering και δείτε γρήγορα την κατάστασή τους.
-        </p>
-      </div>
-
-      <form action={handleSubmit} className="space-y-4">
-        <ErrorMessage message={error} />
-        {success ? (
-          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {success}
-          </div>
-        ) : null}
-
-        <Field label="Αριθμός τραπεζιού" htmlFor="table_number" required>
-          <Input
-            id="table_number"
-            name="table_number"
-            placeholder="π.χ. 1"
-            required
-            className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
-          />
-        </Field>
-
-        <Field label="Όνομα / σημείωση" htmlFor="name">
-          <Input
-            id="name"
-            name="name"
-            placeholder="π.χ. Βεράντα"
-            className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
-          />
-        </Field>
-
-        <Button type="submit" loading={isPending} className="rounded-2xl">
-          Προσθήκη τραπεζιού
-        </Button>
-      </form>
-
-      <div className="mt-6">
-        <div className="mb-4">
-          <h4 className="text-lg font-semibold text-gray-900">Υπάρχοντα τραπέζια</h4>
-          <p className="mt-1 text-sm text-[#7b6657]">
-            Συνολικά τραπέζια: {tables.length}
+    <>
+      <div className="rounded-[24px] border border-[#ebe5dd] bg-white p-6 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+        <div className="mb-5">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+            Table setup
+          </p>
+          <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
+            Διαχείριση τραπεζιών
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-[#7b6657]">
+            Προσθέστε τραπέζια για το QR ordering και δείτε γρήγορα την κατάστασή τους.
           </p>
         </div>
 
-        {tables.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#d8cdc1] bg-[#fffdfa] px-4 py-8 text-center text-sm text-[#7b6657]">
-            Δεν υπάρχουν τραπέζια ακόμα.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {tables.map((table) => {
-              const customerUrl = generateTableUrl(businessSlug, table.id)
-              const isQrOpen = openQrTableId === table.id
+        <form action={handleSubmit} className="space-y-4">
+          <ErrorMessage message={error} />
+          {success ? (
+            <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+              {success}
+            </div>
+          ) : null}
 
-              return (
-                <div
-                  key={table.id}
-                  className="rounded-2xl border border-[#eee5dc] bg-[#faf7f2] px-4 py-4"
-                >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        Τραπέζι {table.table_number}
-                      </p>
-                      <p className="mt-1 text-xs text-[#7b6657]">
-                        {table.name ?? 'Χωρίς σημείωση'}
-                      </p>
+          <Field label="Αριθμός τραπεζιού" htmlFor="table_number" required>
+            <Input
+              id="table_number"
+              name="table_number"
+              placeholder="π.χ. 1"
+              required
+              className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+            />
+          </Field>
+
+          <Field label="Όνομα / σημείωση" htmlFor="name">
+            <Input
+              id="name"
+              name="name"
+              placeholder="π.χ. Βεράντα"
+              className="rounded-2xl border-[#e7ddd3] bg-[#fffdfa] py-3"
+            />
+          </Field>
+
+          <Button type="submit" loading={isPending} className="rounded-2xl">
+            Προσθήκη τραπεζιού
+          </Button>
+        </form>
+
+        <div className="mt-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-lg font-semibold text-gray-900">Υπάρχοντα τραπέζια</h4>
+              <p className="mt-1 text-sm text-[#7b6657]">
+                Συνολικά τραπέζια: {tables.length}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-[#faf7f2] px-4 py-2 text-sm font-medium text-[#5f5146]">
+              Compact view
+            </div>
+          </div>
+
+          {tables.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#d8cdc1] bg-[#fffdfa] px-4 py-8 text-center text-sm text-[#7b6657]">
+              Δεν υπάρχουν τραπέζια ακόμα.
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {tables.map((table) => {
+                const customerUrl = generateTableUrl(businessSlug, table.id)
+                const isQrOpen = openQrTableId === table.id
+
+                return (
+                  <div
+                    key={table.id}
+                    className="rounded-[22px] border border-[#eee5dc] bg-[#faf7f2] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          Τραπέζι {table.table_number}
+                        </p>
+                        <p className="mt-1 text-xs text-[#7b6657]">
+                          {table.name ?? 'Χωρίς σημείωση'}
+                        </p>
+                      </div>
+
+                      <span
+                        className={
+                          table.active_session
+                            ? 'rounded-full bg-[#fce7d6] px-3 py-1 text-xs font-medium text-[#9a5b24]'
+                            : 'rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]'
+                        }
+                      >
+                        {table.active_session ? 'Κατειλημμένο' : 'Ελεύθερο'}
+                      </span>
                     </div>
 
-                    <span
-                      className={
-                        table.active_session
-                          ? 'rounded-full bg-[#fce7d6] px-3 py-1 text-xs font-medium text-[#9a5b24]'
-                          : 'rounded-full bg-[#e7f6ea] px-3 py-1 text-xs font-medium text-[#26734d]'
-                      }
-                    >
-                      {table.active_session ? 'Κατειλημμένο' : 'Ελεύθερο'}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white p-3">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8b715d]">
-                      Customer link
-                    </p>
-                    <p className="mt-2 break-all text-sm text-gray-700">
-                      {customerUrl}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2">
                       <Button
                         type="button"
                         className="rounded-2xl"
@@ -228,63 +227,97 @@ export function TableManager({ tables, businessSlug }: TableManagerProps) {
                         type="button"
                         variant="ghost"
                         className="rounded-2xl"
-                        onClick={() =>
-                          setOpenQrTableId(isQrOpen ? null : table.id)
-                        }
+                        onClick={() => setOpenQrTableId(isQrOpen ? null : table.id)}
                       >
-                        {isQrOpen ? 'Κλείσιμο QR' : 'Generate QR'}
+                        {isQrOpen ? 'Κλείσιμο QR' : 'QR'}
                       </Button>
                     </div>
                   </div>
-
-                  {isQrOpen ? (
-                    <div className="mt-4 rounded-2xl border border-[#e8ddd2] bg-white p-4">
-                      <div
-                        id={`qr-print-${table.id}`}
-                        className="flex flex-col items-center text-center"
-                      >
-                        <div className="title text-xl font-semibold text-gray-900">
-                          Τραπέζι {table.table_number}
-                        </div>
-                        <div className="subtitle mt-1 text-sm text-[#7b6657]">
-                          {table.name ?? 'QR Ordering'}
-                        </div>
-
-                        <div className="qr mt-4 rounded-2xl border border-[#eee5dc] bg-white p-4">
-                          <QRCodeSVG value={customerUrl} size={220} includeMargin />
-                        </div>
-
-                        <p className="mt-4 max-w-xs break-all text-xs text-[#7b6657]">
-                          {customerUrl}
-                        </p>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap justify-center gap-2">
-                        <Button
-                          type="button"
-                          className="rounded-2xl"
-                          onClick={() => handlePrintQr(table.id)}
-                        >
-                          Print / Save PDF
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="rounded-2xl"
-                          onClick={() => handleCopy(customerUrl, table.id)}
-                        >
-                          Copy link
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {openQrTableId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          {(() => {
+            const table = tables.find((item) => item.id === openQrTableId)
+            if (!table) return null
+
+            const customerUrl = generateTableUrl(businessSlug, table.id)
+
+            return (
+              <div className="w-full max-w-md rounded-[28px] border border-[#ebe5dd] bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                      Table QR
+                    </p>
+                    <h3 className="mt-2 text-xl font-semibold tracking-tight text-gray-900">
+                      Τραπέζι {table.table_number}
+                    </h3>
+                    <p className="mt-1 text-sm text-[#7b6657]">
+                      {table.name ?? 'QR Ordering'}
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-2xl"
+                    onClick={() => setOpenQrTableId(null)}
+                  >
+                    Κλείσιμο
+                  </Button>
+                </div>
+
+                <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] p-4">
+                  <div
+                    id={`qr-print-${table.id}`}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <div className="title text-xl font-semibold text-gray-900">
+                      Τραπέζι {table.table_number}
+                    </div>
+                    <div className="subtitle mt-1 text-sm text-[#7b6657]">
+                      {table.name ?? 'QR Ordering'}
+                    </div>
+
+                    <div className="qr mt-4 rounded-2xl border border-[#eee5dc] bg-white p-4">
+                      <QRCodeSVG value={customerUrl} size={220} includeMargin />
+                    </div>
+
+                    <p className="mt-4 break-all text-xs text-[#7b6657]">
+                      {customerUrl}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <Button
+                      type="button"
+                      className="rounded-2xl"
+                      onClick={() => handlePrintQr(table.id)}
+                    >
+                      Print / Save PDF
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="rounded-2xl"
+                      onClick={() => handleCopy(customerUrl, table.id)}
+                    >
+                      Copy link
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      ) : null}
+    </>
   )
 }
