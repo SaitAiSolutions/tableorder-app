@@ -72,6 +72,8 @@ export interface Business {
   currency: string
   default_language: Language
   is_active: boolean
+  phone: string | null
+  opening_hours: string | null
 
   account_status: AccountStatus
   subscription_status: SubscriptionStatus

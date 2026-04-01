@@ -1,7 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BellRing, ReceiptText, Search, X } from 'lucide-react'
+import {
+  BellRing,
+  Clock3,
+  Phone,
+  ReceiptText,
+  Search,
+  X,
+} from 'lucide-react'
 import { CategoryNav } from '@/components/customer/category-nav'
 import { ProductGrid } from '@/components/customer/product-grid'
 import { CartBar } from '@/components/customer/cart-bar'
@@ -119,6 +126,15 @@ export function CustomerApp({ data }: CustomerAppProps) {
       ),
     [filteredCategories],
   )
+
+  const businessPhone = data.business.phone?.trim() || ''
+  const businessOpeningHours = data.business.opening_hours?.trim() || ''
+  const openingHoursLines = businessOpeningHours
+    ? businessOpeningHours
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : []
 
   function buildCartKey(productId: string, choiceIds: string[] = []) {
     const sorted = [...choiceIds].sort()
@@ -434,6 +450,57 @@ export function CustomerApp({ data }: CustomerAppProps) {
                 </button>
               </div>
             </div>
+
+            {businessPhone || openingHoursLines.length > 0 ? (
+              <div className="mt-6 grid gap-3 md:grid-cols-2">
+                {businessPhone ? (
+                  <div className="rounded-[22px] border border-white/10 bg-white/10 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+                        <Phone className="h-5 w-5 text-white" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/70">
+                          {language === 'en' ? 'Phone' : 'Τηλέφωνο'}
+                        </p>
+
+                        <a
+                          href={`tel:${businessPhone.replace(/\s+/g, '')}`}
+                          className="mt-1 block text-sm font-semibold text-white underline-offset-4 hover:underline"
+                        >
+                          {businessPhone}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {openingHoursLines.length > 0 ? (
+                  <div className="rounded-[22px] border border-white/10 bg-white/10 px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+                        <Clock3 className="h-5 w-5 text-white" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/70">
+                          {language === 'en' ? 'Opening hours' : 'Ωράριο λειτουργίας'}
+                        </p>
+
+                        <div className="mt-2 space-y-1">
+                          {openingHoursLines.map((line, index) => (
+                            <p key={`${line}-${index}`} className="text-sm text-white/90">
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
