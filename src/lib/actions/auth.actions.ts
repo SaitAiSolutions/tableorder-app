@@ -71,9 +71,6 @@ export async function signUp(
 
 // ---------------------------------------------------------------------------
 // signIn
-// Super admin emails always go to /admin.
-// Normal users with at least one business go to /dashboard.
-// Normal users without business go to /onboarding.
 // ---------------------------------------------------------------------------
 export async function signIn(
   _prev: ActionResult,
@@ -114,7 +111,6 @@ export async function signIn(
 
 // ---------------------------------------------------------------------------
 // signOut
-// Clears session and admin business selection cookie.
 // ---------------------------------------------------------------------------
 export async function signOut(): Promise<void> {
   const supabase = await createClient()
@@ -170,8 +166,7 @@ export async function forgotPassword(
 
 // ---------------------------------------------------------------------------
 // updatePassword
-// After password reset, send super admins to /admin and others based on whether
-// they already belong to a business.
+// This action is for password recovery / reset-password flow only.
 // ---------------------------------------------------------------------------
 export async function updatePassword(
   _prev: ActionResult,
@@ -213,4 +208,46 @@ export async function updatePassword(
   }
 
   redirect('/onboarding')
+}
+
+// ---------------------------------------------------------------------------
+// changePasswordFromSettings
+// This action is for logged-in users changing password from dashboard settings.
+// ---------------------------------------------------------------------------
+export async function changePasswordFromSettings(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    return { error: 'Δεν βρέθηκε ενεργός χρήστης.' }
+  }
+
+  const password = String(formData.get('password') ?? '')
+  const confirm = String(formData.get('confirm') ?? '')
+
+  if (!password || password.length < 8) {
+    return { error: 'Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.' }
+  }
+
+  if (password !== confirm) {
+    return { error: 'Οι κωδικοί δεν ταιριάζουν.' }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard', 'layout')
+
+  return { error: null }
 }

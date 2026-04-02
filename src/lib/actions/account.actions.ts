@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 interface ActionResult {
@@ -44,6 +45,9 @@ export async function updateAccountEmail(
   if (error) {
     return { error: error.message }
   }
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard', 'layout')
 
   return { error: null }
 }

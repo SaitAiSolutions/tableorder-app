@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { updatePassword } from '@/lib/actions/auth.actions'
+import { changePasswordFromSettings } from '@/lib/actions/auth.actions'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/input'
 import { ErrorMessage } from '@/components/ui/error-message'
@@ -15,7 +15,10 @@ export function PasswordForm() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [passwordValue, setPasswordValue] = useState('')
   const [confirmValue, setConfirmValue] = useState('')
-  const [state, action, pending] = useActionState(updatePassword, initialState)
+  const [state, action, pending] = useActionState(
+    changePasswordFromSettings,
+    initialState,
+  )
 
   useEffect(() => {
     if (!pending && submitted && state.error !== null) {
@@ -23,7 +26,15 @@ export function PasswordForm() {
     }
   }, [pending, submitted, state.error])
 
-  const success = submitted && !pending && state.error === null
+  useEffect(() => {
+    if (!pending && submitted && state.error === null) {
+      setPasswordValue('')
+      setConfirmValue('')
+      setSubmitted(false)
+    }
+  }, [pending, submitted, state.error])
+
+  const success = !pending && state.error === null && !passwordValue && !confirmValue
 
   const passwordsMismatch = useMemo(() => {
     if (!passwordValue || !confirmValue) return false
@@ -145,7 +156,7 @@ export function PasswordForm() {
             type="submit"
             loading={pending}
             className="rounded-2xl"
-            disabled={passwordTooShort || passwordsMismatch}
+            disabled={passwordTooShort || passwordsMismatch || !passwordValue || !confirmValue}
           >
             Αποθήκευση νέου κωδικού
           </Button>
