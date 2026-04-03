@@ -312,10 +312,12 @@ export default async function DashboardBillingPage() {
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
             <CreditCard className="h-5 w-5" />
           </div>
-          <p className="text-sm text-[#7b6657]">Υπόλοιπο trial</p>
+          <p className="text-sm text-[#7b6657]">
+            {billingExempt ? 'Πρόσβαση' : 'Υπόλοιπο trial'}
+          </p>
           <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
             {billingExempt
-              ? 'Admin override'
+              ? 'Free access'
               : trial.isActiveSubscription
                 ? 'Ενεργή συνδρομή'
                 : typeof trial.daysLeft === 'number'

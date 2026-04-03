@@ -7,6 +7,7 @@ import {
   UtensilsCrossed,
   Wallet,
   BellRing,
+  ChevronDown,
 } from 'lucide-react'
 import {
   getCurrentBusiness,
@@ -39,6 +40,9 @@ export default async function DashboardHomePage() {
 
   if (!business) return null
 
+  const businessAny = business as any
+  const billingExempt = Boolean(businessAny.billing_exempt)
+
   const cookieStore = await cookies()
   const adminSelectedBusinessId = cookieStore.get('admin_business_id')?.value
   const isSuperAdmin = await isCurrentUserSuperAdmin()
@@ -49,7 +53,7 @@ export default async function DashboardHomePage() {
     business.subscription_status,
   )
 
-  if (!isAdminViewing && trial.expired) {
+  if (!isAdminViewing && !billingExempt && trial.expired) {
     return (
       <div className="space-y-6 sm:space-y-8">
         <div className="overflow-hidden rounded-[24px] border border-[#f1d4d4] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
@@ -138,7 +142,7 @@ export default async function DashboardHomePage() {
 
   const hasTables = totalTables > 0
   const hasMenu = totalProducts > 0 || totalCategories > 0
-  const hasSubscription = business.subscription_status === 'active'
+  const hasSubscription = billingExempt || business.subscription_status === 'active'
 
   const completedSteps = [hasTables, hasMenu, hasSubscription].filter(Boolean).length
   const progressPercentage = Math.round((completedSteps / 3) * 100)
@@ -183,7 +187,9 @@ export default async function DashboardHomePage() {
           <span className="font-semibold">{business.name}</span>. Τα billing/trial
           στοιχεία έχουν κρυφτεί σε αυτή την προβολή.
         </div>
-      ) : !trial.isActiveSubscription && typeof trial.daysLeft === 'number' ? (
+      ) : !billingExempt &&
+        !trial.isActiveSubscription &&
+        typeof trial.daysLeft === 'number' ? (
         <div className="rounded-[22px] border border-[#e8ddd2] bg-[#fcfaf7] px-5 py-4 text-sm text-[#6f6156] shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
           Απομένουν{' '}
           <span className="font-semibold text-gray-900">{trial.daysLeft}</span>{' '}
@@ -216,23 +222,30 @@ export default async function DashboardHomePage() {
             </div>
 
             {!isAdminViewing ? (
-              <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur-sm">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
-                  Setup progress
-                </p>
+              <details className="group rounded-[22px] bg-white/10 p-4 backdrop-blur-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
+                      Setup progress
+                    </p>
+                    <p className="mt-2 text-sm text-white/85">
+                      Ολοκληρώθηκαν {completedSteps} από 3 βασικά βήματα.
+                    </p>
+                  </div>
 
-                <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/15">
-                  <div
-                    className="h-full rounded-full bg-white"
-                    style={{ width: `${progressPercentage}%` }}
-                  />
-                </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <div className="w-24 overflow-hidden rounded-full bg-white/15 sm:w-28">
+                      <div
+                        className="h-2.5 rounded-full bg-white"
+                        style={{ width: `${progressPercentage}%` }}
+                      />
+                    </div>
 
-                <p className="mt-3 text-sm text-white/85">
-                  Ολοκληρώθηκαν {completedSteps} από 3 βασικά βήματα.
-                </p>
+                    <ChevronDown className="h-4 w-4 text-white/80 transition group-open:rotate-180" />
+                  </div>
+                </summary>
 
-                <div className="mt-3 space-y-2.5">
+                <div className="mt-4 space-y-2.5">
                   <div className="rounded-2xl bg-white/10 px-4 py-2.5">
                     <p className="text-sm font-medium text-white">
                       Τραπέζια: {hasTables ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
@@ -247,11 +260,16 @@ export default async function DashboardHomePage() {
 
                   <div className="rounded-2xl bg-white/10 px-4 py-2.5">
                     <p className="text-sm font-medium text-white">
-                      Συνδρομή: {hasSubscription ? 'Ολοκληρώθηκε' : 'Εκκρεμεί'}
+                      Συνδρομή:{' '}
+                      {billingExempt
+                        ? 'Ολοκληρώθηκε (Free access)'
+                        : hasSubscription
+                          ? 'Ολοκληρώθηκε'
+                          : 'Εκκρεμεί'}
                     </p>
                   </div>
                 </div>
-              </div>
+              </details>
             ) : null}
           </div>
         </div>
