@@ -675,6 +675,17 @@ export function CustomerApp({ data }: CustomerAppProps) {
                 : 'Δεν υπάρχουν διαθέσιμες κατηγορίες.'}
           </div>
         )}
+
+        <div className="mx-auto mt-10 max-w-5xl px-4 pb-6 text-center sm:px-6">
+          <a
+            href="https://www.sait.gr"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm text-[#8a6d58] transition hover:text-[#5f5146] hover:underline"
+          >
+            Made by Sait
+          </a>
+        </div>
       </div>
 
       <CartBar
