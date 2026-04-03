@@ -37,6 +37,8 @@ interface MenuManagerProps {
   products: ProductWithOptions[]
 }
 
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
 export function MenuManager({
   businessId,
   currency,
@@ -80,6 +82,27 @@ export function MenuManager({
     setCategorySuccess(null)
     setProductError(null)
     setProductSuccess(null)
+  }
+
+  function validateImageFile(file: File | null) {
+    if (!file) return null
+
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/svg+xml',
+    ]
+
+    if (!allowedTypes.includes(file.type)) {
+      return 'Επιτρέπονται μόνο JPG, PNG, WEBP ή SVG αρχεία.'
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      return 'Η εικόνα υπερβαίνει το μέγιστο μέγεθος των 5 MB.'
+    }
+
+    return null
   }
 
   const productsByCategory = useMemo(() => {
@@ -136,9 +159,18 @@ export function MenuManager({
       const nameEn = (formData.get('name_en') as string)?.trim()
       const categoryId = (formData.get('category_id') as string)?.trim()
       const rawPrice = (formData.get('price') as string)?.trim()
+      const imageFile = formData.get('image') as File | null
 
       if (!nameEl || !categoryId || !rawPrice) {
         setProductError('Συμπληρώστε όνομα, κατηγορία και τιμή.')
+        return
+      }
+
+      const imageValidationError =
+        imageFile && imageFile.size > 0 ? validateImageFile(imageFile) : null
+
+      if (imageValidationError) {
+        setProductError(imageValidationError)
         return
       }
 
@@ -170,8 +202,6 @@ export function MenuManager({
         setProductError(createResult.error ?? 'Αποτυχία δημιουργίας προϊόντος.')
         return
       }
-
-      const imageFile = formData.get('image') as File | null
 
       if (imageFile && imageFile.size > 0) {
         const uploadResult = await uploadProductImage(
@@ -422,6 +452,18 @@ export function MenuManager({
         return
       }
 
+      const fileInput = document.getElementById(
+        `edit-image-${productId}`,
+      ) as HTMLInputElement | null
+      const file = fileInput?.files?.[0] ?? null
+
+      const imageValidationError = validateImageFile(file)
+
+      if (imageValidationError) {
+        setProductError(imageValidationError)
+        return
+      }
+
       const updateResult = await updateProduct(productId, {
         name_el: trimmedNameEl,
         name_en: trimmedNameEn || null,
@@ -435,11 +477,6 @@ export function MenuManager({
         setProductError(updateResult.error)
         return
       }
-
-      const fileInput = document.getElementById(
-        `edit-image-${productId}`,
-      ) as HTMLInputElement | null
-      const file = fileInput?.files?.[0] ?? null
 
       if (file) {
         const editFormData = new FormData()
@@ -888,9 +925,20 @@ export function MenuManager({
                         type="file"
                         accept="image/jpeg,image/png,image/webp,image/svg+xml"
                         className="hidden"
-                        onChange={(e) =>
-                          setSelectedProductFileName(e.target.files?.[0]?.name ?? '')
-                        }
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          const validationError = validateImageFile(file)
+
+                          if (validationError) {
+                            setProductError(validationError)
+                            setSelectedProductFileName('')
+                            e.currentTarget.value = ''
+                            return
+                          }
+
+                          setProductError(null)
+                          setSelectedProductFileName(file?.name ?? '')
+                        }}
                       />
 
                       <p className="text-xs text-[#7b6657]">
@@ -1181,9 +1229,20 @@ export function MenuManager({
                           type="file"
                           accept="image/jpeg,image/png,image/webp,image/svg+xml"
                           className="hidden"
-                          onChange={(e) =>
-                            setEditingProductFileName(e.target.files?.[0]?.name ?? '')
-                          }
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null
+                            const validationError = validateImageFile(file)
+
+                            if (validationError) {
+                              setProductError(validationError)
+                              setEditingProductFileName('')
+                              e.currentTarget.value = ''
+                              return
+                            }
+
+                            setProductError(null)
+                            setEditingProductFileName(file?.name ?? '')
+                          }}
                         />
 
                         <p className="text-xs text-[#7b6657]">
