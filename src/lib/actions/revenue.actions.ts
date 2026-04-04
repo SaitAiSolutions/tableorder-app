@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentBusiness } from '@/lib/actions/business.actions'
-import type { DailyCashClosure, ServiceRequestType } from '@/types/database.types'
+import type {
+  DailyCashClosure,
+  ServiceRequestType,
+  Table,
+} from '@/types/database.types'
 
 interface ActionResult<T = null> {
   data: T | null
@@ -30,6 +34,18 @@ function getTodayDateStringAthens() {
   })
 
   return formatter.format(new Date())
+}
+
+type ClosureOrderItem = {
+  id: string
+  total_amount: number
+  created_at: string
+  table_id: string
+  table_label: string
+}
+
+export type DailyCashClosureWithOrders = DailyCashClosure & {
+  included_orders: ClosureOrderItem[]
 }
 
 export async function getLastCashClosureForBusiness(): Promise<
@@ -79,6 +95,117 @@ export async function getRecentCashClosures(): Promise<
   }
 
   return { data: (data as DailyCashClosure[]) ?? [], error: null }
+}
+
+export async function getRecentCashClosuresWithOrders(): Promise<
+  ActionResult<DailyCashClosureWithOrders[]>
+> {
+  const supabase = await createClient()
+  const { data: business, error: businessError } = await getCurrentBusiness()
+
+  if (businessError || !business) {
+    return { data: null, error: businessError ?? 'Η επιχείρηση δεν βρέθηκε.' }
+  }
+
+  const { data: closuresRaw, error: closuresError } = await supabase
+    .from('daily_cash_closures')
+    .select('*')
+    .eq('business_id', business.id)
+    .order('closed_at', { ascending: true })
+    .limit(5)
+
+  if (closuresError) {
+    return { data: null, error: closuresError.message }
+  }
+
+  const closures = (closuresRaw as DailyCashClosure[]) ?? []
+
+  if (closures.length === 0) {
+    return { data: [], error: null }
+  }
+
+  const newestClosure = closures[closures.length - 1]
+
+  const { data: ordersRaw, error: ordersError } = await supabase
+    .from('orders')
+    .select('id, total_amount, created_at, table_id, notes')
+    .eq('business_id', business.id)
+    .lte('created_at', newestClosure.closed_at)
+    .order('created_at', { ascending: true })
+
+  if (ordersError) {
+    return { data: null, error: ordersError.message }
+  }
+
+  const regularOrders = (ordersRaw ?? []).filter(
+    (order) => !getServiceRequestType(order.notes),
+  ) as Array<{
+    id: string
+    total_amount: number
+    created_at: string
+    table_id: string
+    notes?: string | null
+  }>
+
+  const uniqueTableIds = [...new Set(regularOrders.map((order) => order.table_id).filter(Boolean))]
+
+  let tableMap = new Map<string, string>()
+
+  if (uniqueTableIds.length > 0) {
+    const { data: tablesRaw, error: tablesError } = await supabase
+      .from('tables')
+      .select('id, table_number, name')
+      .in('id', uniqueTableIds)
+
+    if (tablesError) {
+      return { data: null, error: tablesError.message }
+    }
+
+    const tables = (tablesRaw ?? []) as Table[]
+
+    tableMap = new Map(
+      tables.map((table) => [
+        table.id,
+        table.name?.trim()
+          ? `${table.table_number} · ${table.name}`
+          : `${table.table_number}`,
+      ]),
+    )
+  }
+
+  const resultAscending: DailyCashClosureWithOrders[] = closures.map((closure, index) => {
+    const previousClosure = index > 0 ? closures[index - 1] : null
+
+    const includedOrders = regularOrders
+      .filter((order) => {
+        const createdAt = new Date(order.created_at).getTime()
+        const currentClosedAt = new Date(closure.closed_at).getTime()
+
+        if (previousClosure) {
+          const previousClosedAt = new Date(previousClosure.closed_at).getTime()
+          return createdAt > previousClosedAt && createdAt <= currentClosedAt
+        }
+
+        return createdAt <= currentClosedAt
+      })
+      .map((order) => ({
+        id: order.id,
+        total_amount: Number(order.total_amount ?? 0),
+        created_at: order.created_at,
+        table_id: order.table_id,
+        table_label: tableMap.get(order.table_id) ?? '—',
+      }))
+
+    return {
+      ...closure,
+      included_orders: includedOrders.reverse(),
+    }
+  })
+
+  return {
+    data: resultAscending.reverse(),
+    error: null,
+  }
 }
 
 export async function closeBusinessDay(): Promise<ActionResult<DailyCashClosure>> {
