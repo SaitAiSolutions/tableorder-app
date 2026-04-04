@@ -210,6 +210,16 @@ export interface OrderItemOption {
   price_delta: number
 }
 
+export interface DailyCashClosure {
+  id: string
+  business_id: string
+  closure_date: string
+  total_amount: number
+  orders_count: number
+  closed_at: string
+  created_at: string
+}
+
 // ---------------------------------------------------------------------------
 // Insert types
 // ---------------------------------------------------------------------------
@@ -221,6 +231,7 @@ export type InsertCategory = Omit<Category, 'id' | 'created_at' | 'updated_at'>
 export type InsertProduct = Omit<Product, 'id' | 'created_at' | 'updated_at'>
 export type InsertProductOptionGroup = Omit<ProductOptionGroup, 'id' | 'created_at'>
 export type InsertProductOptionChoice = Omit<ProductOptionChoice, 'id' | 'created_at'>
+export type InsertDailyCashClosure = Omit<DailyCashClosure, 'id' | 'created_at'>
 
 // ---------------------------------------------------------------------------
 // Update types
@@ -240,6 +251,10 @@ export type UpdateCategory = Partial<
 
 export type UpdateProduct = Partial<
   Omit<Product, 'id' | 'business_id' | 'created_at' | 'updated_at'>
+>
+
+export type UpdateDailyCashClosure = Partial<
+  Omit<DailyCashClosure, 'id' | 'created_at'>
 >
 
 // ---------------------------------------------------------------------------
@@ -414,6 +429,11 @@ export type Database = {
         Row: OrderItemOption
         Insert: Omit<OrderItemOption, 'id'>
         Update: Partial<OrderItemOption>
+      }
+      daily_cash_closures: {
+        Row: DailyCashClosure
+        Insert: InsertDailyCashClosure
+        Update: UpdateDailyCashClosure
       }
     }
     Functions: {

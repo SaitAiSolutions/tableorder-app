@@ -11,6 +11,7 @@ import {
   CreditCard,
   Shield,
   ArrowLeft,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -26,6 +27,7 @@ const items = [
   { href: '/dashboard/tables', label: 'Τραπέζια', icon: Table2 },
   { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
   { href: '/dashboard/settings', label: 'Ρυθμίσεις', icon: Settings },
+  { href: '/dashboard/revenue', label: 'Εισπράξεις', icon: Wallet },
   { href: '/admin', label: 'Admin', icon: Shield },
 ]
 
