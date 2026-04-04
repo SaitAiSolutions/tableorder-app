@@ -1,0 +1,354 @@
+import Link from 'next/link'
+import {
+  ClipboardList,
+  CreditCard,
+  Table2,
+  UtensilsCrossed,
+  Wallet,
+  BellRing,
+  ArrowRight,
+} from 'lucide-react'
+import { formatCurrency } from '@/lib/utils/format-currency'
+
+const demoBusiness = {
+  name: 'Cafe Rethymno',
+  currency: 'EUR',
+}
+
+const demoStats = {
+  activeOrders: 3,
+  activeServiceRequests: 2,
+  occupiedTables: 5,
+  todayRevenue: 128.5,
+  totalProducts: 17,
+}
+
+const demoOrders = [
+  {
+    id: 'demo-001',
+    tableTitle: 'Τραπέζι 1 · Παραλία',
+    status: 'Νέα',
+    total: 14.5,
+    itemsCount: 2,
+  },
+  {
+    id: 'demo-002',
+    tableTitle: 'Τραπέζι 4 · Μέσα',
+    status: 'Σε προετοιμασία',
+    total: 9,
+    itemsCount: 1,
+  },
+]
+
+export default function DemoDashboardPage() {
+  return (
+    <div className="min-h-screen bg-[#f6f3ee]">
+      <div className="flex min-h-screen bg-[#f6f3ee]">
+        <aside className="hidden w-72 shrink-0 border-r border-[#ebe5dd] bg-[#fcfaf7] lg:flex lg:flex-col">
+          <div className="border-b border-[#ebe5dd] px-6 py-6">
+            <div className="rounded-3xl bg-gradient-to-br from-[#1f2937] via-[#263244] to-[#7c5c46] p-5 text-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/75">
+                TableOrder
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+                Owner Dashboard
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-white/80">
+                Διαχειριστείτε παραγγελίες, τραπέζια και το ψηφιακό σας μενού.
+              </p>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[#d8cdc1] bg-white p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                Public demo
+              </p>
+              <p className="mt-2 text-sm font-semibold text-gray-900">
+                {demoBusiness.name}
+              </p>
+
+              <Link
+                href="/demo"
+                className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-[#1f2937] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#111827]"
+              >
+                Επιστροφή στο demo
+              </Link>
+            </div>
+          </div>
+
+          <nav className="flex flex-1 flex-col gap-2 p-4">
+            {[
+              'Πίνακας Ελέγχου',
+              'Παραγγελίες',
+              'Μενού',
+              'Τραπέζια',
+              'Billing',
+              'Ρυθμίσεις',
+              'Εισπράξεις',
+            ].map((label, index) => (
+              <div
+                key={label}
+                className={
+                  index === 0
+                    ? 'flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium bg-[#1f2937] text-white shadow-[0_10px_24px_rgba(31,41,55,0.16)]'
+                    : 'flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-[#5e5349]'
+                }
+              >
+                <span className="h-4 w-4 rounded-full border border-current opacity-70" />
+                {label}
+              </div>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          <main className="flex-1 px-3 py-4 sm:px-4 sm:py-5 lg:px-8 lg:py-8">
+            <div className="space-y-5">
+              <div className="rounded-[22px] border border-[#d8cdc1] bg-white px-5 py-4 text-sm text-[#6f6156] shadow-[0_6px_20px_rgba(15,23,42,0.03)] sm:rounded-[24px]">
+                Αυτό είναι public demo preview του dashboard. Δεν απαιτείται σύνδεση.
+              </div>
+
+              <div className="overflow-hidden rounded-[24px] border border-[#ebe5dd] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:rounded-[28px]">
+                <div className="bg-gradient-to-r from-[#1f2937] via-[#2b3442] to-[#7c5c46] px-5 py-5 text-white sm:px-6 sm:py-6 lg:px-7">
+                  <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/70">
+                        Overview
+                      </p>
+
+                      <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+                        {demoBusiness.name}
+                      </h2>
+
+                      <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80">
+                        Επισκόπηση επιχείρησης, παραγγελιών, menu και πληρότητας τραπεζιών
+                        σε ένα σημείο.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[22px] bg-white/10 p-4 backdrop-blur-sm">
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/75">
+                        Setup progress
+                      </p>
+
+                      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/15">
+                        <div className="h-full rounded-full bg-white" style={{ width: '100%' }} />
+                      </div>
+
+                      <p className="mt-3 text-sm text-white/85">
+                        Ολοκληρώθηκαν 3 από 3 βασικά βήματα.
+                      </p>
+
+                      <div className="mt-3 space-y-2.5">
+                        <div className="rounded-2xl bg-white/10 px-4 py-2.5">
+                          <p className="text-sm font-medium text-white">
+                            Τραπέζια: Ολοκληρώθηκε
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-white/10 px-4 py-2.5">
+                          <p className="text-sm font-medium text-white">
+                            Menu: Ολοκληρώθηκε
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-white/10 px-4 py-2.5">
+                          <p className="text-sm font-medium text-white">
+                            Συνδρομή: Ολοκληρώθηκε
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+                    <ClipboardList className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm text-[#7b6657]">Ενεργές παραγγελίες</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+                    {demoStats.activeOrders}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+                    <BellRing className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm text-[#7b6657]">Service requests</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+                    {demoStats.activeServiceRequests}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+                    <Table2 className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm text-[#7b6657]">Κατειλημμένα τραπέζια</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+                    {demoStats.occupiedTables}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+                    <Wallet className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm text-[#7b6657]">Σύνολο σήμερα</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+                    {formatCurrency(demoStats.todayRevenue, demoBusiness.currency)}
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f5efe7] text-[#7c5c46]">
+                    <UtensilsCrossed className="h-5 w-5" />
+                  </div>
+                  <p className="text-sm text-[#7b6657]">Προϊόντα στο menu</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+                    {demoStats.totalProducts}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                        Live activity
+                      </p>
+                      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
+                        Νέα ενεργή παραγγελία
+                      </h3>
+                      <p className="mt-3 text-sm leading-6 text-[#7b6657]">
+                        Τραπέζι 1 · Παραλία
+                      </p>
+                    </div>
+
+                    <ArrowRight className="mt-1 h-5 w-5 shrink-0 text-[#8b715d]" />
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                        Status
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-gray-900">
+                        Νέα
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                        Είδη
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-gray-900">
+                        2
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-[#faf7f2] px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-[#8b715d]">
+                        Σύνολο
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-gray-900">
+                        {formatCurrency(14.5, demoBusiness.currency)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <Link
+                      href="/auth/signup"
+                      className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white hover:bg-[#111827]"
+                    >
+                      Ξεκίνα δωρεάν
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px]">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                      Ημερήσιο κλείσιμο
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#7b6657]">
+                      Αποθήκευση του σημερινού συνόλου στις Εισπράξεις και επανεκκίνηση του μετρητή ημέρας.
+                    </p>
+
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex items-center justify-center rounded-2xl bg-[#1f2937] px-5 py-3 text-sm font-semibold text-white opacity-70"
+                      >
+                        Κλείσιμο Ημέρας
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[22px] border border-[#ebe5dd] bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:rounded-[24px] sm:p-6">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-[#8b715d]">
+                      Quick actions
+                    </p>
+
+                    <div className="mt-4 grid gap-3">
+                      <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Διαχείριση τραπεζιών
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Πρόσθεσε τραπέζια, QR και floor setup.
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Επεξεργασία menu
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Κατηγορίες, προϊόντα και επιλογές.
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Παραγγελίες
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Παρακολούθηση ενεργών και ολοκληρωμένων παραγγελιών.
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Εισπράξεις
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Δες ιστορικό κλεισίματος ημέρας 5 ημερών.
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#e8ddd2] bg-[#fcfaf7] px-4 py-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          Billing & συνδρομή
+                        </p>
+                        <p className="mt-1 text-sm text-[#7b6657]">
+                          Δες trial, συνδρομή και τιμολόγηση.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  )
+}
